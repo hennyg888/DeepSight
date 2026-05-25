@@ -5,6 +5,7 @@ def convert_legacy_json(legacy_path, new_path):
     """将旧格式JSON转换为JSONL格式
     Convert legacy JSON format to JSONL format"""
     print(f"⏳ 开始转换: {legacy_path} → {new_path}")
+    # Starting conversion: {legacy_path} -> {new_path}
     
     # 1. 加载整个旧JSON对象（需足够内存）
     # 1. Load the entire legacy JSON object (requires sufficient memory)
@@ -13,12 +14,14 @@ def convert_legacy_json(legacy_path, new_path):
             legacy_data = json.load(f)
     except Exception as e:
         print(f"❌ 加载失败: {e}")
+        # Load failed: {e}
         return False
     
     # 2. 验证数据结构
     # 2. Validate the data structure
     if not isinstance(legacy_data, dict):
         print("❌ 无效数据格式: 需要是字典对象")
+        # Invalid data format: a dict object is required
         return False
     
     # 3. 转换为JSONL
@@ -36,7 +39,9 @@ def convert_legacy_json(legacy_path, new_path):
                 f_out.write(json.dumps(new_item, ensure_ascii=False) + '\n')
     
     print(f"✅ 转换完成! 新文件: {new_path}")
+    # Conversion complete! New file: {new_path}
     print(f"📊 转换条目: {len(legacy_data)}")
+    # Converted entries: {count}
     return True
 
 # 使用示例

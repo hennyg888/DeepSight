@@ -379,6 +379,7 @@ def read_points_from_jsonl(file_path):
                 points_by_line.append(points)
             except json.JSONDecodeError:
                 print(f"警告: 无法解析行: {line.strip()}")
+                # Warning: cannot parse line: {line.strip()}
     return points_by_line
 
 # 计算两向量之间的角度（弧度）
@@ -626,6 +627,7 @@ def plot_smooth_route(ax, waypoints, color='blue', method='cubic_spline', label=
 
     except Exception as e:
         print(f"平滑曲线生成失败: {e}，使用原始折线代替")
+        # Smooth curve generation failed: {e}, falling back to the original polyline
         # 如果插值失败，回退到原始折线
         # Fall back to the raw polyline if interpolation fails
         line = ax.plot(x_coords, y_coords, '-', linewidth=1.5, color=color, label=label)[0]
@@ -792,6 +794,7 @@ def visualize_batch_comparison(points_batch, output_dir="./output", batch_idx=1,
     plt.close(fig)
     
     print(f"批量对比图已保存到: {output_path}")
+    # Batch comparison chart saved to: {output_path}
     return output_path
 
 # 分批处理数据
@@ -801,6 +804,7 @@ def process_in_batches(points_by_line, batch_size=12, output_dir="./comparison_r
     num_batches = math.ceil(total_lines / batch_size)
     
     print(f"共有 {total_lines} 行数据, 将分 {num_batches} 批处理 (每批最多 {batch_size} 条)")
+    # Total {total_lines} rows of data, processing in {num_batches} batches (up to {batch_size} per batch)
     
     for i in range(num_batches):
         start_idx = i * batch_size
@@ -808,6 +812,7 @@ def process_in_batches(points_by_line, batch_size=12, output_dir="./comparison_r
         batch = points_by_line[start_idx:end_idx]
         
         print(f"处理第 {i+1} 批, 包含 {len(batch)} 条路线 (索引 {start_idx+1} 到 {end_idx})")
+        # Processing batch {i+1}, containing {len(batch)} routes (indices {start_idx+1} to {end_idx})
         visualize_batch_comparison(batch, output_dir, i+1)
 
 # 主函数
@@ -820,11 +825,13 @@ def main():
     # Read data
     points_by_line = read_points_from_jsonl(file_path)
     print(f"从文件中读取了 {len(points_by_line)} 行数据")
+    # Read {len(points_by_line)} rows of data from the file
 
     # 过滤掉点数太少的路线
     # Filter out routes with too few points
     filtered_points = [points for points in points_by_line if len(points) >= 5]
     print(f"过滤后保留 {len(filtered_points)} 条有效路线 (点数 >= 5)")
+    # After filtering, retained {len(filtered_points)} valid routes (point count >= 5)
 
     # 处理所有路线
     # Process all routes

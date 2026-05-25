@@ -105,6 +105,7 @@ if __name__ == '__main__':
     # assert 1==2
     # infer by transformers
     print('使用原始代码进行推理, 开始初始化模型')
+    # Running inference with the original code; initializing the model
     sampling_params, processor, model, tokenizer = init_model(model_path)
 
     results = []

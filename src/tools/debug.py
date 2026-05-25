@@ -108,9 +108,12 @@ if __name__ == '__main__':
     location = np.array(location + [1])
     pix_location = world2cam @ location
     print('相机坐标', pix_location)
+    # Camera-frame coordinates
 
     cam2world = np.linalg.inv(world2cam)
     inv_location = cam2world @ pix_location
     print('逆-世界坐标',inv_location)
+    # Inverse-projected world coordinates
     print('世界坐标',location)
+    # Original world coordinates
     

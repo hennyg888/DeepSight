@@ -642,6 +642,7 @@ def create_train_json(scene_path, result_map):
             target_points.append(new_point)
     except IndexError:
         print(f"无法访问 all_annos[{nums-20}]，跳过此目标点")
+        # Cannot access all_annos[{nums-20}]; skipping this target point
     
     reduced_points, removed_indices = extract_straight_lanes(target_points, angle_threshold=0.05)
     sampled_points = plot_sampled_points(reduced_points, angle_threshold=15, max_extension=25, label='Route 1')

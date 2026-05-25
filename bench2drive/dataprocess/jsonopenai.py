@@ -25,6 +25,7 @@ def call_multi_image_api(text_prompt, images):
     """
     try:
         print(f"处理 {len(images)} 张图片")
+        # Processing {n} images
         
         # 预定义图像描述（按顺序）
         # Predefined image descriptions (in order)
@@ -73,6 +74,7 @@ def call_multi_image_api(text_prompt, images):
 
     except Exception as e:
         print(f"API 调用异常: {e}")
+        # API call exception: {e}
         return None
 
 if __name__ == "__main__":
@@ -90,6 +92,7 @@ if __name__ == "__main__":
     processed_ids = set()
     if os.path.exists(output_file):
         print("⏳ 加载已处理ID集合...")
+        # Loading the set of already-processed IDs...
         with open(output_file, 'r', encoding='utf-8') as f:
             for line in f:
                 try:
@@ -97,10 +100,12 @@ if __name__ == "__main__":
                 except (json.JSONDecodeError, KeyError):
                     continue  # 跳过无效行 / skip invalid line
         print(f"✅ 已加载 {len(processed_ids)} 个已处理ID")
+        # Loaded {n} already-processed IDs
 
     # 2. 流式处理输入文件
     # 2. Stream-process the input file
     print("🚀 开始处理新数据...")
+    # Start processing new data...
     with open(input_json, 'r', encoding='utf-8') as infile:
         for line in infile:
             try:
@@ -110,7 +115,7 @@ if __name__ == "__main__":
 
             id = item['images'][-1]
             if id in processed_ids:
-                continue  # 跳过已处理ID
+                continue  # 跳过已处理ID / skip already-processed ID
 
             images_path = item['images']
             user_content = item['prompt']
@@ -118,24 +123,29 @@ if __name__ == "__main__":
             # 3. 重试机制（保持不变）
             # 3. Retry mechanism (unchanged)
             response = None
-            for attempt in range(1, 6):  # 最多5次重试
+            for attempt in range(1, 6):  # 最多5次重试 / up to 5 retries
                 print(f"\n[ID: {id}] 第 {attempt}/5 次尝试...")
+                # [ID: {id}] Attempt {attempt}/5...
                 start_time = time.time()
                 response = call_multi_image_api(user_content, images_path)
                 end_time = time.time()
 
                 if response is not None:
                     print(f"🎉 成功！耗时: {end_time - start_time:.2f} 秒")
+                    # Success! Elapsed time: {seconds:.2f}s
                     break
                 else:
                     print(f"❌ 第 {attempt} 次失败")
+                    # Attempt {attempt} failed
                     if attempt < 5:
                         delay = 1.5 ** attempt + random.uniform(0, 1)
                         print(f"⏳ 等待 {delay:.2f} 秒后重试...")
+                        # Waiting {delay:.2f}s before retry...
                         time.sleep(delay)
 
             if response is None:
                 print(f"💀 ID {id} 处理失败")
+                # ID {id} processing failed
                 continue
 
             # 4. 增量写入结果 (核心优化)
@@ -149,8 +159,11 @@ if __name__ == "__main__":
             with open(output_file, 'a', encoding='utf-8') as outfile:
                 outfile.write(json.dumps(result, ensure_ascii=False) + '\n')
             
-            processed_ids.add(id)  # 更新内存集合
+            processed_ids.add(id)  # 更新内存集合 / update the in-memory set
             print(f"💾 已保存 ID: {id} | 剩余: {len(processed_ids)}")
+            # Saved ID: {id} | Remaining: {n}
 
     print(f"\n✅ 处理完成! 最终结果文件: {output_file}")
+    # Processing complete! Final result file: {output_file}
     print(f"📊 总处理条目: {len(processed_ids)}")
+    # Total entries processed: {n}

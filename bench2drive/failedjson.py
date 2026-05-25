@@ -40,6 +40,7 @@ def get_failed_route_ids(json_path):
             shibai_ids.add(pure_id)
             
     print(f"找到失败/未完成的路线数量: {len(shibai_ids)}")
+    # Number of failed / incomplete routes found: {count}
     return shibai_ids
 
 def filter_xml_by_ids(input_xml, output_xml, target_ids):
@@ -49,6 +50,7 @@ def filter_xml_by_ids(input_xml, output_xml, target_ids):
     """
     if not os.path.exists(input_xml):
         print(f"错误: 找不到输入 XML 文件 {input_xml}")
+        # Error: input XML file not found at {input_xml}
         return
 
     tree = ET.parse(input_xml)
@@ -78,6 +80,7 @@ def filter_xml_by_ids(input_xml, output_xml, target_ids):
         
     new_tree.write(output_xml, encoding='utf-8', xml_declaration=True)
     print(f"成功提取 {count} 条路线到 {output_xml}")
+    # Successfully extracted {count} routes to {output_xml}
 
 if __name__ == "__main__":
     # 配置路径

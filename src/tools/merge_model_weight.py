@@ -27,3 +27,4 @@ for key in keys:
 save_file(merged_model, f"{target_path}/model.safetensors", metadata)
 
 print("模型合并完成，保存为 model.safetensors")
+# Model merge complete; saved as model.safetensors

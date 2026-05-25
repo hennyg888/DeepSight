@@ -33,3 +33,4 @@ output_path = '/home/zhanglingjun.zlj/code/Bench2Drive/extracted_6.json'
 
 results = extract_dicts_with_key_6(json_path, output_path)
 print(f"成功提取 {len(results)} 个元素，已保存到: {output_path}")
+# Successfully extracted {n} elements, saved to: {output_path}

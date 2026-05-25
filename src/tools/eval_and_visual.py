@@ -181,6 +181,7 @@ def visual_for_bev(label, pred=None, visual_path=None):
     answer = label['messages'][1]['content']
     speed_content, his_trajs, future_trajs, future_trajs_pixel, targetpointpixel = parse_prompt_and_answer(prompt, answer)
     print('像素坐标', future_trajs_pixel, targetpointpixel)
+    # Pixel coordinates
     if pred is not None:
         pred_trajs, pred_trajs_pixel = parse_answer(pred['pred'])
     else:
@@ -245,9 +246,11 @@ def main_for_vis_train():
     # 遍历 base_folder 下的每个子文件夹
     # Iterate over each subdirectory under base_folder
     print(f'开始读取{train_json}')
+    # Start reading {train_json}
     with open(train_json, 'r') as f:
         lines = f.readlines()
     print(f'读取{train_json}完成')
+    # Finished reading {train_json}
 
     k = min(100, len(lines))
     lines = random.sample(lines, k)
@@ -265,14 +268,18 @@ def main_for_vis_infer():
     # 遍历 base_folder 下的每个子文件夹
     # Iterate over each subdirectory under base_folder
     print(f'开始读取{gt_json}')
+    # Start reading {gt_json}
     with open(gt_json, 'r') as f:
         lines = f.readlines()
     print(f'读取{gt_json}完成')
+    # Finished reading {gt_json}
 
     print(f'开始读取{pred_json}')
+    # Start reading {pred_json}
     with open(pred_json, 'r') as f:
         lines_pred = f.readlines()
     print(f'读取{pred_json}完成')
+    # Finished reading {pred_json}
 
     assert len(lines_pred) == len(lines), f'{len(lines_pred)} != {len(lines)}'
 
@@ -293,7 +300,9 @@ def print_l2_loss(losses_1s, losses_2s):
     # 输出结果
     # Print the results
     print(f"\n🎯 轨迹预测误差评估结果（仅 1s 和 2s）")
+    # Trajectory prediction error evaluation results (only 1s and 2s)
     print(f"{'时段':<6} {'样本数':<8} {'平均L2误差':<12} {'标准差':<10} {'最小值':<8} {'最大值':<8}")
+    # Columns: Period | Samples | Mean L2 error | Std | Min | Max
     print("-" * 60)
 
     def print_stat(name, arr):
@@ -337,14 +346,18 @@ def main_for_eval_l2():
     visual_flag = False
     os.makedirs(visual_path, exist_ok=True)
     print(f'开始读取{gt_json}')
+    # Start reading {gt_json}
     with open(gt_json, 'r') as f:
         lines = f.readlines()
     print(f'读取{gt_json}完成')
+    # Finished reading {gt_json}
 
     print(f'开始读取{pred_json}')
+    # Start reading {pred_json}
     with open(pred_json, 'r') as f:
         lines_pred = f.readlines()
     print(f'读取{pred_json}完成')
+    # Finished reading {pred_json}
 
     assert len(lines_pred) == len(lines), f'{len(lines_pred)} != {len(lines)}'
 

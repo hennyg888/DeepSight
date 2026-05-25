@@ -12,6 +12,7 @@ mapfile -t files < <(ls -1 *.tar.gz 2>/dev/null)
 total=${#files[@]}
 
 echo "找到 $total 个tar.gz文件，使用 $CONCURRENT 个并发进程"
+# Found $total tar.gz files, using $CONCURRENT concurrent processes
 
 # 定义并发处理函数
 # Define the concurrent processing function
@@ -21,11 +22,14 @@ process_file() {
     local total="$3"
     
     echo "[$index/$total] 正在解压: $file"
+    # [$index/$total] Extracting: $file
     if tar -xzf "$file"; then
         rm "$file"
         echo "[$index/$total] 成功解压并删除: $file"
+        # [$index/$total] Successfully extracted and removed: $file
     else
         echo "[$index/$total] 解压失败，保留文件: $file"
+        # [$index/$total] Extraction failed, keeping file: $file
     fi
 }
 
@@ -48,3 +52,4 @@ done
 wait
 
 echo "处理完成！"
+# Processing complete!

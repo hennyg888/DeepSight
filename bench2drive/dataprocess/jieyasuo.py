@@ -68,3 +68,4 @@ with open('/home/zhanglingjun.zlj/code/Bench2Drive/town2.json', 'w') as f:
     json.dump(python_data, f, indent=2)
 
 print("转换完成! 已保存到: /home/zhanglingjun.zlj/code/Bench2Drive/arr.json")
+# Conversion complete! Saved to: /home/zhanglingjun.zlj/code/Bench2Drive/arr.json

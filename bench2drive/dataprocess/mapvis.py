@@ -96,6 +96,7 @@ def extract_and_visualize_routes(json_file_path, output_dir='./routes'):
         plt.close()
         
         print(f"已生成路线图: {output_path} (包含 {len(coords)} 个点)")
+        # Route map generated: {output_path} (contains {n} points)
     
     return routes
 
@@ -112,5 +113,7 @@ if __name__ == "__main__":
     # 打印统计信息
     # Print route statistics
     print("\n路线统计:")
+    # Route statistics:
     for key, coords in routes.items():
         print(f"  - 路线 {key}: {len(coords)} 个点")
+        # Route {key}: {n} points

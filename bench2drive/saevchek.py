@@ -19,25 +19,31 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
     # 1. Verify model device location
     current_device = next(model.parameters()).device
     print(f"✅ 模型当前在 {current_device} 上")
+    # Model is currently on {current_device}
     
     # 2. 确保参考配置路径有效
     # 2. Ensure the reference config path is valid
     if not os.path.exists(ref_config_path):
         raise FileNotFoundError(f"参考配置路径不存在: {ref_config_path}")
     print(f"🔍 使用参考配置: {ref_config_path}")
+    # Using reference config: {ref_config_path}
 
     # 3. 检查内存并安全转移权重到 CPU
     # 3. Check memory and safely transfer weights to CPU
     print("\n🔍 检查 CPU 内存...")
+    # Checking CPU memory...
     try:
         # 尝试全精度 (FP32)
         # Try full precision (FP32)
         print("尝试全精度 (FP32) 保存...")
+        # Trying full-precision (FP32) save...
         model = model.cpu()
         print("✅ 全精度转移成功 (需 ~12GB RAM)")
+        # Full-precision transfer succeeded (requires ~12GB RAM)
     except RuntimeError as e:
         if "out of memory" in str(e).lower():
             print(f"⚠️ 内存不足！改用半精度 (FP16) 保存 (需 ~6GB RAM)")
+            # Out of memory! Switching to half precision (FP16) save (requires ~6GB RAM)
             model = model.half().cpu()
         else:
             raise
@@ -46,6 +52,7 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
     # 4. Create the save directory
     os.makedirs(save_dir, exist_ok=True)
     print(f"\n📦 创建保存目录: {save_dir}")
+    # Created save directory: {save_dir}
 
     # 5. 复制参考配置文件（关键！因为原始文件已删除）
     # 5. Copy reference config files (critical: original files have been deleted)
@@ -66,6 +73,7 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
             print(f"  ✓ {file}")
         else:
             print(f"  ✗ {file} (跳过)")
+            # {file} (skipped)
 
     # 6. 保存模型权重（处理大文件）
     # 6. Save model weights (handle large files)
@@ -78,6 +86,7 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
     
     # ========== 修复点：替换分片逻辑 ========== # Fix: replace the sharding logic
     print("⚠️ 使用兼容分片方案 (支持旧版 Transformers)...")
+    # Using compatible sharding scheme (supports older Transformers versions)...
     max_shard_bytes = 5 * 1024**3  # 2GB
     current_shard = {}
     current_size = 0
@@ -125,6 +134,7 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
         with open(index_path, "w") as f:
             json.dump(index, f, indent=2)
         print(f"✨ 生成索引文件: {index_path}")
+        # Index file generated: {index_path}
 
     # 7. 保存 Qwen2.5VL 专用组件（确保多模态支持）
     # 7. Save Qwen2.5VL-specific components (ensure multimodal support)
@@ -148,6 +158,7 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
     # 8. 验证保存结果
     # 8. Verify the saved output
     print("\n✅ 保存完成！验证文件列表:")
+    # Save complete! Listing saved files:
     total_size = 0
     for root, _, files in os.walk(save_dir):
         for file in files:
@@ -157,8 +168,11 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
             print(f"  - {os.path.relpath(path, save_dir)} | {size/(1024**2):.2f} MB")
     
     print(f"\n📦 总大小: {total_size/(1024**3):.2f} GB")
+    # Total size: {total_size/(1024**3):.2f} GB
     print(f"🎉 模型已安全保存到: {os.path.abspath(save_dir)}")
+    # Model safely saved to: {abs path}
     print("💡 后续加载命令:")
+    # To load the model later, use:
     print(f"   model = Qwen2_5VLForConditionalGeneration.from_pretrained('{save_dir}', device_map='auto')")
     return save_dir
 
@@ -175,8 +189,10 @@ if __name__ == "__main__":
     # Note: although the path exists, weights were overwritten — extract from current GPU
     print("=" * 60)
     print("Qwen2.5VL GPU 7 模型备份工具 (原始文件已删除)")
+    # Qwen2.5VL GPU 7 model backup tool (original files have been deleted)
     print("=" * 60)
     print(f"⚠️ 注意: 模型路径 {model_path} 的权重已被覆盖，正在从GPU提取...")
+    # Note: weights at {model_path} have been overwritten; extracting from GPU...
     
     # 加载模型（你的原始代码）
     # Load the model (your original code)
@@ -190,7 +206,9 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     
     print(f"\n✅ 模型已加载到 {next(model.parameters()).device}")
+    # Model loaded onto {device}
     print(f"模型类型: {model.__class__.__name__}")
+    # Model class: {model.__class__.__name__}
     
     # ======================
     # 从 GPU 提取并保存
@@ -209,12 +227,14 @@ if __name__ == "__main__":
     # ======================
     processor.save_pretrained(save_dir)
     print(f"\n✅ Processor 已保存到: {save_dir}")
+    # Processor saved to: {save_dir}
     
     # ======================
     # 验证保存（确保可加载）
     # Verify the save (ensure the model can be loaded)
     # ======================
     print("\n🔍 验证: 尝试从本地加载模型...")
+    # Verification: attempting to load the model from local disk...
     try:
         loaded_model = Qwen2_5VLForConditionalGeneration.from_pretrained(
             save_dir,
@@ -222,21 +242,27 @@ if __name__ == "__main__":
             torch_dtype=torch.float16 if model.dtype == torch.float16 else torch.float32
         )
         print(f"✅ 加载成功！设备: {next(loaded_model.parameters()).device}")
+        # Load succeeded! Device: {device}
         
         # 检查多模态组件
         # Check multimodal components
         if hasattr(loaded_model, 'visual_encoder'):
             print("  ✓ 视觉编码器已恢复")
+            # Visual encoder restored
         if hasattr(loaded_model, 'mm_projector'):
             print("  ✓ 多模态投影层已恢复")
+            # Multimodal projection layer restored
             
     except Exception as e:
         print(f"❌ 验证失败: {str(e)}")
+        # Verification failed: {error}
         print("可能原因: 1. 内存不足 2. 配置不完整 3. 依赖版本问题")
+        # Possible reasons: 1. Out of memory 2. Incomplete config 3. Dependency version issue
         exit(1)
     
     print("\n" + "="*60)
     print("✨ 备份完成！请使用以下命令加载模型:")
+    # Backup complete! Use the following commands to load the model:
     print(f"   from transformers import Qwen2_5VLForConditionalGeneration")
     print(f"   model = Qwen2_5VLForConditionalGeneration.from_pretrained('{save_dir}', device_map='auto')")
     print("="*60)

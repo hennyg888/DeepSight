@@ -59,6 +59,7 @@ def load_trajtoken_dict(json_file_path):
                 trajtoken_dict[img_path] = data["trajtoken"]
             except Exception as e:
                 print(f"解析行失败: {e}")
+                # Failed to parse line: {e}
                 continue
     return trajtoken_dict
 

@@ -620,8 +620,9 @@ def save_waypoints_visualization(routes, output_dir="./waypoints_viz", batch_siz
     
     total_routes = len(routes)
     num_batches = math.ceil(total_routes / batch_size)
-    
+
     print(f"共有 {total_routes} 条路线, 将分 {num_batches} 批次可视化")
+    # Total of {total_routes} routes; will visualize in {num_batches} batches
     
     for batch_idx in range(num_batches):
         start_idx = batch_idx * batch_size
@@ -641,6 +642,7 @@ def save_waypoints_visualization(routes, output_dir="./waypoints_viz", batch_siz
             
             if not waypoints:
                 print(f"警告: 路线 {route_id} 没有waypoints，跳过。")
+                # Warning: route {route_id} has no waypoints; skipping.
                 continue
             
             x_coords = [p[0] for p in waypoints]
@@ -695,8 +697,9 @@ def save_waypoints_visualization(routes, output_dir="./waypoints_viz", batch_siz
         output_path = os.path.join(output_dir, f"routes_batch_{batch_idx+1}_of_{num_batches}.png")
         plt.savefig(output_path, dpi=150)
         plt.close(fig)
-        
+
         print(f"批次 {batch_idx+1}/{num_batches} 已保存到: {output_path}")
+        # Batch {batch_idx+1}/{num_batches} saved to: {output_path}
     
     # 创建汇总图
     # Create the overview summary figure
@@ -738,23 +741,29 @@ def save_waypoints_visualization(routes, output_dir="./waypoints_viz", batch_siz
     plt.close(fig_all)
     
     print(f"已将全部可视化结果保存到目录: {output_dir}")
+    # All visualization results saved to directory: {output_dir}
     print(f"共处理了 {len(routes)} 条路线")
+    # Processed a total of {len(routes)} routes
 
 def main():
     xml_file = "/home/zhanglingjun.zlj/code/Bench2Drive/leaderboard/data/bench2drive220.xml"
     
     if not os.path.exists(xml_file):
         print(f"错误: 找不到文件 {xml_file}")
+        # Error: file not found {xml_file}
         return
-    
+
     print(f"正在解析文件: {xml_file}")
+    # Parsing file: {xml_file}
     routes = parse_xml_waypoints(xml_file)
     
     if not routes:
         print("警告: 未找到任何路线数据")
+        # Warning: no route data found
         return
-    
+
     print(f"找到 {len(routes)} 条路线")
+    # Found {len(routes)} routes
     save_waypoints_visualization(routes, output_dir="./visualization_results_2204", batch_size=12, max_cols=3, tick_interval=20)
 
 if __name__ == "__main__":

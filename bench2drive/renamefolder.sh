@@ -6,8 +6,10 @@ for d in failed2_*_qw_tj_*; do
 
   if [ -e "$new_name" ]; then
     echo "跳过: $d -> $new_name (目标已存在)"
+    # Skip: $d -> $new_name (target already exists)
   else
     echo "重命名: $d -> $new_name"
+    # Rename: $d -> $new_name
     mv "$d" "$new_name"
   fi
 done
