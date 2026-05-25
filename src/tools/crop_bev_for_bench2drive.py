@@ -12,6 +12,7 @@ import time
 def transform_next_bev_img(info_0, info_1, img):
 
     # 每像素对应的实际距离 (m/px)
+    # Real-world distance per pixel (m/px)
     # meters_per_pixel_x, meters_per_pixel_y = 0.08925925, 0.08925925 # ~0.08926 # ~0.08926
 
     # world2ego = info_1["bounding_boxes"][0]["world2ego"]
@@ -24,7 +25,7 @@ def transform_next_bev_img(info_0, info_1, img):
     location_0 = info_0["bounding_boxes"][0]["location"]
     extent = info_0["bounding_boxes"][0]["extent"]
     location_0 = np.array(location_0 + [1])
-    location_0[2] = location_0[2] - extent[2] # 移动至地面
+    location_0[2] = location_0[2] - extent[2] # 移动至地面 / shift to ground level
     location_0 =  world2cam @ location_0
     Zc, Xc, Yc = location_0[:3]
     fx, fy = intrinsic[0][0], intrinsic[1][1]
@@ -34,17 +35,20 @@ def transform_next_bev_img(info_0, info_1, img):
     # print(location_0, location_1, shift)
 
     # 获取朝向角
+    # Get heading angles
     theta_0 = info_0["theta"]
     theta_1 = info_1["theta"]
     rotate = (theta_0 - theta_1) % (2 * np.pi)
     angle = rotate * 180 / np.pi
 
     # 对图像进行旋转和平移变换
+    # Apply rotation and translation transform to the image
     height, width = img.shape[:2]
     center = (width / 2, height / 2)
     rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
     rotated_img = cv2.warpAffine(img, rotation_matrix, (width, height))
     # 旋转变换
+    # Rotation transform
     target_point = np.array([u, v, 1])
     target_point = rotation_matrix @ target_point
     shift_x = center[0] - target_point[0]
@@ -62,6 +66,7 @@ def crop_and_save_img(img, save_name):
     crop_width, crop_height = 512, 512
 
     # 计算裁剪区域（居中水平，顶部开始垂直）
+    # Compute crop region (horizontally centered, vertically from top)
     left = (width - crop_width) // 2
     top = 85
     right = left + crop_width
@@ -74,6 +79,7 @@ def crop_and_save_img(img, save_name):
 def fuc_crop_imgs(scene_path):
     # print(f'Processing {scene_path}')
     # 定义路径
+    # Define file paths
     try:
         anno_path = os.path.join(scene_path, 'anno')
         rgb_top_down_folder = os.path.join(scene_path, 'camera', 'rgb_top_down')
@@ -86,6 +92,7 @@ def fuc_crop_imgs(scene_path):
         img_files = [f for f in img_files if f.endswith('.jpg')]
         num_img = len(img_files)
         # 预先加载所有的anno和img
+        # Pre-load all annotation and image files
         all_imgs = []
         all_annos = []
         for i in range(num_img):
@@ -117,6 +124,7 @@ def fuc_crop_imgs(scene_path):
 
 def visual_for_crop(scene_path, visual_path, k=5):
     # 定义路径
+    # Define file paths
     hz_index = list(range(0, 21, 5))
     scene_name = scene_path.split('/')[-1]
     bev_img_folders = [os.path.join(scene_path, 'camera', f'rgb_bev_{i}th-hz') for i in hz_index]
@@ -140,6 +148,7 @@ if __name__ == '__main__':
     img_width, img_height = 1600, 900
 
     # 遍历 base_folder 下的每个子文件夹
+    # Iterate over each subdirectory in base_folder
     scene_names = os.listdir(base_folder)
     scene_names = [os.path.join(base_folder, name) for name in scene_names if name[0] != '.']
     scene_names = [name for name in scene_names if os.path.isdir(name)]

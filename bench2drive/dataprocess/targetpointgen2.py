@@ -8,10 +8,10 @@ import math
 import re
 
 RESULT_MAP = None
-RESULT_JSONL_PATH = '/home/zhanglingjun.zlj/code/Bench2Drive/totaljsonfile/merged_output.jsonl'  # 替换为实际路径
+RESULT_JSONL_PATH = '/home/zhanglingjun.zlj/code/Bench2Drive/totaljsonfile/merged_output.jsonl'  # 替换为实际路径 / replace with the actual path
 
 def load_result_map():
-    """加载result映射字典到全局变量"""
+    """加载result映射字典到全局变量 / Load the result mapping dict into the global variable."""
     global RESULT_MAP
     if RESULT_MAP is None:
         print(f"Loading result map from {RESULT_JSONL_PATH}...")
@@ -21,6 +21,7 @@ def load_result_map():
                 try:
                     data = json.loads(line.strip())
                     # 确保id是字符串类型
+                    # Ensure the id field is a string
                     img_id = str(data['id'])
                     RESULT_MAP[img_id] = data['result']
                 except Exception as e:
@@ -29,7 +30,7 @@ def load_result_map():
     return RESULT_MAP
 
 def line_intersection(line1, line2):
-    """计算两条直线的交点"""
+    """计算两条直线的交点 / Compute the intersection point of two lines."""
     xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
     ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
 
@@ -38,7 +39,7 @@ def line_intersection(line1, line2):
 
     div = det(xdiff, ydiff)
     if abs(div) < 1e-8:
-        return None  # 平行线
+        return None  # 平行线 / parallel lines
 
     d = (det(*line1), det(*line2))
     x = det(d, xdiff) / div
@@ -50,27 +51,36 @@ def calculate_angle(v1, v2):
     norm_v2 = np.linalg.norm(v2)
     
     # 避免除零错误
+    # Guard against division by zero
     if norm_v1 == 0 or norm_v2 == 0:
         return 0
     
     # 确保dot_product/norm_v1/norm_v2在[-1, 1]范围内
+    # Clamp to [-1, 1] to guard against floating-point errors
     cos_angle = max(min(dot_product / (norm_v1 * norm_v2), 1.0), -1.0)
     return math.acos(cos_angle)
 def sample_path_equidistant(waypoints, sample_interval=1.5):
     """
     从起点开始沿路径进行等距离采样
-    
+    Sample the path at equal-distance intervals starting from the first point.
+
     参数:
+    Args:
     - waypoints: 路径点列表 [(x1,y1), (x2,y2), ...]
+        waypoints: List of path points [(x1,y1), (x2,y2), ...]
     - sample_interval: 采样间隔（L2距离单位）
-    
+        sample_interval: Sampling interval in L2-distance units.
+
     返回:
+    Returns:
     - 采样点列表 [(x1,y1), (x2,y2), ...]
+        List of sampled points.
     """
     if len(waypoints) < 2:
-        return waypoints  # 不足两点无法采样
-    
+        return waypoints  # 不足两点无法采样 / fewer than 2 points, cannot sample
+
     # 计算路径总长度
+    # Compute total path length
     total_length = 0.0
     segment_lengths = []
     
@@ -82,21 +92,26 @@ def sample_path_equidistant(waypoints, sample_interval=1.5):
         total_length += seg_len
     
     # 生成采样点
+    # Generate sample points
     samples = []
     current_distance = 0.0
     next_sample_distance = sample_interval
     
     # 添加起点
+    # Add the start point
     samples.append(waypoints[0])
-    
+
     # 遍历每个线段
+    # Iterate over each segment
     for i in range(len(segment_lengths)):
         seg_start = current_distance
         seg_end = current_distance + segment_lengths[i]
         
         # 在当前线段内生成所有采样点
+        # Generate all sample points within the current segment
         while next_sample_distance < seg_end:
             # 计算线段上的比例位置
+            # Compute the interpolation ratio along the segment
             ratio = (next_sample_distance - seg_start) / segment_lengths[i]
             p0 = np.array(waypoints[i])
             p1 = np.array(waypoints[i+1])
@@ -108,7 +123,9 @@ def sample_path_equidistant(waypoints, sample_interval=1.5):
         current_distance = seg_end
     
     # 添加终点（如果需要） - 但题目要求等距离采样，通常不包含终点
+    # Add endpoint if needed — equal-interval sampling usually excludes it
     # 如果要求包含终点，可取消下面注释
+    # Uncomment below to always include the endpoint
     if samples[-1] != waypoints[-1]:
         samples.append(waypoints[-1])
     
@@ -117,82 +134,108 @@ def sample_path_equidistant(waypoints, sample_interval=1.5):
 def crop_sharp_turns_improved(waypoints, angle_threshold=45, max_extension=50.0):
     """
     使用前后两个点定义的直线交点裁剪急转弯点，并避免重复处理参与计算的点
-    
+    Crop sharp-turn points using the intersection of lines defined by neighboring points,
+    avoiding double-processing of points already used in intersection computation.
+
     参数:
+    Args:
     - waypoints: 原始轨迹点列表
+        waypoints: List of raw trajectory points.
     - angle_threshold: 角度阈值（度），超过此值视为急转弯
+        angle_threshold: Angular threshold in degrees above which a turn is sharp.
     - max_extension: 裁剪点与原点的最大允许距离
-    
+        max_extension: Maximum allowed distance from origin for a cropped point.
+
     返回:
+    Returns:
     - 裁剪后的轨迹点列表
+        Cropped list of trajectory points.
     """
-    if len(waypoints) < 5:  # 至少需要5个点才能获取前后各两个点
+    if len(waypoints) < 5:  # 至少需要5个点才能获取前后各两个点 / need at least 5 points
         return waypoints
-    
+
     points = np.array(waypoints, dtype=float)
-    cropped = [tuple(points[0])]  # 保留起点
-    
+    cropped = [tuple(points[0])]  # 保留起点 / keep the start point
+
     # 处理第二个点
+    # Include the second point
     cropped.append(tuple(points[1]))
-    
-    i = 2  # 从第三个点开始处理
+
+    i = 2  # 从第三个点开始处理 / start processing from the third point
     angle_threshold_rad = np.deg2rad(angle_threshold)
 
-    while i < len(points) - 2:  # 直到倒数第三个点结束
+    while i < len(points) - 2:  # 直到倒数第三个点结束 / stop before the second-to-last point
         # 计算前后向量
+        # Compute forward and backward vectors
         v1 = points[i] - points[i-1]
         v2 = points[i+1] - points[i]
-        
+
         # 计算夹角
+        # Compute the turning angle
         angle = calculate_angle(v1, v2)
-        
+
         if angle > angle_threshold_rad:
             # 定义前面的直线：使用 (i-2, i-1) 这两个点
+            # Define the preceding line using points (i-2, i-1)
             line1 = (tuple(points[i-2]), tuple(points[i-1]))
-            
+
             # 定义后面的直线：使用 (i+1, i+2) 这两个点
+            # Define the following line using points (i+1, i+2)
             line2 = (tuple(points[i+1]), tuple(points[i+2]))
-            
+
             # 计算两条直线的交点
+            # Compute the intersection of the two lines
             intersection = line_intersection(line1, line2)
-            
+
             if intersection:
                 p = np.array(intersection)
                 # 检查条件1：交点在第一条直线的正向延长线 (i-1 -> 方向)
+                # Condition 1: intersection lies on the forward extension of line1
                 # 向量 AB = points[i-1] - points[i-2] (线段方向)
+                # Vector AB = segment direction
                 # 向量 BP = p - points[i-1] (从i-1到交点)
+                # Vector BP = from i-1 to intersection
                 AB = points[i-1] - points[i-2]
                 BP = p - points[i-1]
                 # 要求 BP 与 AB 同向 (点乘 > 0)
+                # BP must be in the same direction as AB (dot product > 0)
                 if np.dot(BP, AB) <= 0:
                     i += 1
                     continue
                 CD = points[i+2] - points[i+1]
                 CP = p - points[i+1]
                 # 要求 CP 与 CD 反向 (点乘 < 0)
+                # CP must be opposite to CD (dot product < 0)
                 if np.dot(CP, CD) >= 0:
                     i += 1
                     continue
                 # 检查交点是否合理（距离不能太远）
+                # Verify the intersection is within a reasonable distance
                 dist_to_turn = np.linalg.norm(np.array(intersection) - points[i])
                 if dist_to_turn < max_extension:
                     # 用交点替代当前转弯点
+                    # Replace the turn point with the computed intersection
                     cropped.append(intersection)
-                    
+
                     # 关键改进：跳过被处理过的点
+                    # Key improvement: skip points already used in this intersection
                     # 跳过当前点和后面两个参与计算的点
-                    i += 3  # 直接跳到 i+3
+                    # Skip current point and the next two points used in computation
+                    i += 3  # 直接跳到 i+3 / jump directly to i+3
                     continue
-        
+
         # 没有急转弯或交点无效，保留当前点
+        # No sharp turn or invalid intersection: keep the current point
         cropped.append(tuple(points[i]))
-        i += 1  # 正常递增
-    
+        i += 1  # 正常递增 / normal increment
+
     # 添加剩余未处理的点
+    # Append remaining unprocessed points
     for j in range(max(i, len(points)-2), len(points)):
         cropped.append(tuple(points[j]))
-    
+
     # 移除重复点
+    # Remove duplicate points
     unique_points = []
     for p in cropped:
         if not unique_points or np.linalg.norm(np.array(p) - np.array(unique_points[-1])) > 1e-5:
@@ -211,11 +254,13 @@ def get_images(i, history_path, suround_view_path, bev_img_folders):
         assert os.path.exists(img_file), f"{img_file} not exists"
         images.append(img_file)
     # 环视图图像
+    # Surround-view images
     for cam_path in suround_view_path:
         img_file = os.path.join(cam_path, f'{i:05d}.jpg')
         assert os.path.exists(img_file), f"{img_file} not exists"
         images.append(img_file)
     # bev 图像
+    # BEV images
     # for bev_img_folder in bev_img_folders:
     #     bev_img = os.path.join(bev_img_folder, f'{i:05d}.jpg')
     #     assert os.path.exists(bev_img), f"{bev_img} not exists"
@@ -264,6 +309,7 @@ def format_trajs(trajs):
 
 def parse_anno(index, all_annos, sampled_points):
     # 获取控制命令
+    # Get the control command
     xtarget = all_annos[index]['x_command_near']
     ytarget = all_annos[index]['y_command_near']
     ztarget = all_annos[index]['bounding_boxes'][0]["location"][2]
@@ -271,9 +317,11 @@ def parse_anno(index, all_annos, sampled_points):
     ztarget = ztarget - extent
     command = all_annos[index]['next_command']
     # 获取速度信息
+    # Get speed information
     speed_content = f'speed: {all_annos[index]["speed"]:.2f}, acceleration: {all_annos[index]["acceleration"][0]:.2f}'
     thick_content = None
     # 获取历史轨迹
+    # Get historical trajectory
     world2ego = np.array(all_annos[index]['bounding_boxes'][0]['world2ego'])
     world2cam = np.array(all_annos[index]["sensors"]["TOP_DOWN"]['world2cam'])
     intrinsic = np.array(all_annos[index]['sensors']["TOP_DOWN"]["intrinsic"])
@@ -292,6 +340,7 @@ def parse_anno(index, all_annos, sampled_points):
         his_trajs.insert(0, his_traj)
     his_trajs = format_trajs(his_trajs)
     # 获取未来轨迹标签
+    # Get future trajectory labels
     future_trajs = []
     for i in range(1, 5):
         future_index = index + i * 5
@@ -301,13 +350,14 @@ def parse_anno(index, all_annos, sampled_points):
         future_trajs.append(future_traj)
     future_trajs = format_trajs(future_trajs)
     # 获取未来轨迹像素标签
+    # Get future trajectory pixel labels
     future_trajs_pixel = []
     for i in range(1, 5):
         future_index = index + i * 5
         future_traj = all_annos[future_index]['bounding_boxes'][0]["location"]
         extent = all_annos[future_index]["bounding_boxes"][0]["extent"]
         future_traj = np.array(future_traj + [1])
-        future_traj[2] = future_traj[2] - extent[2] # 移动至地面
+        future_traj[2] = future_traj[2] - extent[2] # 移动至地面 / shift to ground level
         future_traj =  world2cam @ future_traj
         Zc, Xc, Yc = future_traj[:3]
         fx, fy = intrinsic[0][0], intrinsic[1][1]
@@ -322,6 +372,7 @@ def parse_anno(index, all_annos, sampled_points):
     future_trajs_pixel = f'[{future_trajs_pixel}]'
 
     # 获取 bev content
+    # Get BEV content tokens
     t, h, w, patchsize, n_cls, n_register = 5, 256, 256, 16, 1, 4
     l = t * (h * w // (patchsize ** 2) + n_cls + n_register)
     bev_content = []
@@ -342,7 +393,7 @@ def parse_anno(index, all_annos, sampled_points):
         dx, dy = round((u - 800)/2), round((450 - v)/2)
         # dx, dy = max(-255, min(255, dx)), max(-255, min(255, dy))
         if dy < -255 or dy > 255 or dx < -255 or dx > 255:
-            continue  # 跳过当前时间点，不添加到结果
+            continue  # 跳过当前时间点，不添加到结果 / skip this point, out of pixel range
         dx, dy = f'<|pixel_token_{dx}|>',f'<|pixel_token_{dy}|>'
         bevtargetpoints.append(f'({dy},{dx})')
     bevtargetpoints = ','.join(bevtargetpoints)
@@ -359,23 +410,34 @@ def parse_anno(index, all_annos, sampled_points):
 def extract_straight_lanes(points, angle_threshold=0.3, min_turn_length=5, neighborhood_size=3):
     """
     仅保留转弯前后的直线车道，移除整个转弯段
+    Retain only straight-lane segments before and after each turn, removing the turning section.
     返回值与原函数保持一致: (保留点列表, 移除点索引列表)
-    
+    Return value: (kept points list, removed index list).
+
     参数:
+    Args:
     - points: 轨迹点列表 [(x1,y1), (x2,y2), ...]
+        points: List of trajectory points.
     - angle_threshold: 方向突变阈值（弧度）, 0.3≈17°
+        angle_threshold: Direction-change threshold in radians (0.3 ≈ 17°).
     - min_turn_length: 最小转弯段长度（防止单点噪声误判）
+        min_turn_length: Minimum turn-segment length to avoid noise misclassification.
     - neighborhood_size: 方向计算邻域大小
-    
+        neighborhood_size: Neighborhood size for direction computation.
+
     返回:
+    Returns:
     - straight_points: 仅含直线车道的点列表（转弯前+转弯后）
+        straight_points: Straight-section points only (before + after turn).
     - removed_indices: 被移除的转弯段点的索引列表
+        removed_indices: Indices of removed turning-section points.
     """
     n = len(points)
     if n < 2 * neighborhood_size + min_turn_length:
-        return points, []  # 无转弯段，返回原轨迹
-    
+        return points, []  # 无转弯段，返回原轨迹 / no turn segment, return original
+
     # 步骤1: 计算每个点的方向变化曲率
+    # Step 1: Compute curvature (direction change) at each point
     curvatures = np.zeros(n)
     for i in range(neighborhood_size, n - neighborhood_size):
         prev_vec = np.array(points[i]) - np.array(points[i - neighborhood_size])
@@ -383,6 +445,7 @@ def extract_straight_lanes(points, angle_threshold=0.3, min_turn_length=5, neigh
         curvatures[i] = calculate_angle(prev_vec, next_vec)
     
     # 步骤2: 识别连续转弯段
+    # Step 2: Identify consecutive turning segments
     turning = curvatures > angle_threshold
     turn_segments = []
     
@@ -399,10 +462,12 @@ def extract_straight_lanes(points, angle_threshold=0.3, min_turn_length=5, neigh
             i += 1
     
     # 步骤3: 处理无转弯情况
+    # Step 3: Handle the no-turn case
     if not turn_segments:
         return points, []
     
     # 步骤4: 取第一个有效转弯段（右转场景通常只有一次转弯）
+    # Step 4: Use the first valid turning segment
     turn_start, turn_end = turn_segments[0]
 
     removed_distance = 0
@@ -411,9 +476,10 @@ def extract_straight_lanes(points, angle_threshold=0.3, min_turn_length=5, neigh
     for i in range(len(removed_points) - 1):
         p1 = np.array(removed_points[i])
         p2 = np.array(removed_points[i + 1])
-        segment_distance = np.linalg.norm(p2 - p1)  # 计算相邻两点的欧几里得距离
+        segment_distance = np.linalg.norm(p2 - p1)  # 计算相邻两点的欧几里得距离 / Euclidean distance between adjacent points
         removed_distance += segment_distance
     # 步骤5: 构建结果
+    # Step 5: Build result
     if removed_distance<=30:
         straight_points = points[:turn_start] + points[turn_end + 1:]
         removed_indices = list(range(turn_start, turn_end + 1))
@@ -423,27 +489,37 @@ def extract_straight_lanes(points, angle_threshold=0.3, min_turn_length=5, neigh
     
     return straight_points, removed_indices
 
-def plot_sampled_points(waypoints, angle_threshold=15, 
+def plot_sampled_points(waypoints, angle_threshold=15,
                         max_extension=5000.0, sample_interval=10, label=None):
     """
     绘制等距离采样点（不绘制路径线）
-    
+    Compute equally-spaced sampled points (no path line drawn).
+
     参数:
+    Args:
     - ax: matplotlib轴对象
     - waypoints: 原始轨迹点列表
+        waypoints: List of raw trajectory points.
     - color: 点的颜色
     - angle_threshold: 角度阈值（度）
+        angle_threshold: Angular threshold in degrees.
     - max_extension: 裁剪点与原点的最大允许距离
+        max_extension: Maximum allowed distance for a cropped point.
     - sample_interval: 采样间隔（L2距离单位）
+        sample_interval: Sampling interval in L2-distance units.
     - label: 图例标签
-    
+        label: Legend label.
+
     返回:
+    Returns:
     - 绘制的散点对象
+        Sampled point list.
     """
     if len(waypoints) < 2:
         return None
     
     # 1. 移除重复点
+    # 1. Remove duplicate points
     valid_indices = []
     last_point = None
     for i, point in enumerate(waypoints):
@@ -452,12 +528,13 @@ def plot_sampled_points(waypoints, angle_threshold=15,
             valid_indices.append(i)
             last_point = current_point
     
-    if len(valid_indices) < 2:  # 至少需要2个点才能形成路径
+    if len(valid_indices) < 2:  # 至少需要2个点才能形成路径 / need at least 2 points
         return None
-    
+
     filtered_waypoints = [waypoints[i] for i in valid_indices]
-    
+
     # 2. 应用急转弯裁剪
+    # 2. Apply sharp-turn cropping
     cropped_waypoints = crop_sharp_turns_improved(
         filtered_waypoints, 
         angle_threshold, 
@@ -465,6 +542,7 @@ def plot_sampled_points(waypoints, angle_threshold=15,
     )
     
     # 3. 等距离采样
+    # 3. Equidistant sampling
     sampled_points = sample_path_equidistant(cropped_waypoints, sample_interval)
     
     
@@ -474,30 +552,38 @@ def plot_sampled_points(waypoints, angle_threshold=15,
 def extract_decision_and_summary(result):
     """
     从result字符串中提取决策判断和推理总结
-    
+    Extract the decision judgment and reasoning summary from a result string.
+
     参数:
+    Args:
         result: 原始result字符串
-        
+            result: Raw result string.
+
     返回:
-        tuple: (decision, summary) 
-               decision: "是复杂场景" 部分
-               summary: 推理总结部分
+    Returns:
+        tuple: (decision, summary)
+               decision: "是复杂场景" 部分 / the complexity-decision field
+               summary: 推理总结部分 / the reasoning summary field
     """
     # 正则表达式模式：
+    # Regex pattern:
     # 1. 匹配决策部分：\[根据路况信息判断是否需要复杂决策\]:\s*([^\n]+)
+    #    Match the decision field
     # 2. 匹配总结部分：\[推理结果进行总结\]:\s*([\s\S]+)
+    #    Match the summary field
     pattern = r'\[根据路况信息判断是否需要复杂决策\]:\s*([^\n]+)\s*\[推理结果进行总结\]:\s*([\s\S]+)'
-    
+
     match = re.search(pattern, result)
-    
+
     if match:
-        decision = match.group(1).strip()  # 提取决策部分并去除首尾空格
-        summary = match.group(2).strip()   # 提取总结部分并去除首尾空格
-        
+        decision = match.group(1).strip()  # 提取决策部分并去除首尾空格 / extract decision and strip whitespace
+        summary = match.group(2).strip()   # 提取总结部分并去除首尾空格 / extract summary and strip whitespace
+
         # 特殊处理：移除决策部分末尾的句号（如果存在）
+        # Special case: strip trailing Chinese period from decision if present
         if decision.endswith('。'):
             decision = decision[:-1]
-        
+
         return decision, summary
     else:
         # 如果匹配失败，返回原始字符串或空值
@@ -508,6 +594,7 @@ def extract_decision_and_summary(result):
 def create_train_json(scene_path, result_map):
     print(f"Processing {scene_path}")
     # 设置文件路径：
+    # Set up file paths
     anno_path = os.path.join(scene_path, 'anno')
     hz_index = list(range(0, 21, 5))
     bev_img_folders = [os.path.join(scene_path, 'camera', f'rgb_bev_{i}th-hz') for i in hz_index]
@@ -515,6 +602,7 @@ def create_train_json(scene_path, result_map):
     suround_view_path = ['front', 'front_left', 'front_right', 'back', 'back_left', 'back_right']
     suround_view_path = [os.path.join(scene_path, 'camera', f'rgb_{cam}') for cam in suround_view_path]
     # 遍历获取内容
+    # Iterate and collect annotation data
     anno_files = os.listdir(anno_path)
     anno_files = [f for f in anno_files if f.endswith('.json')]
     all_annos = [json.load(open(os.path.join(anno_path, f))) for f in anno_files]
@@ -547,12 +635,13 @@ def create_train_json(scene_path, result_map):
     for i in range(1, nums-20):
         # try:
              # 解析训练标注
+            # Parse training annotations
             # import pdb; pdb.set_trace()
         his_trajs, speed_content, command, thick_content, bev_content, future_trajs_pixel, future_trajs, xtarget, ytarget, ztarget, bevtargetpoints = parse_anno(i, all_annos, sampled_points)
         
 
-        images = get_images(i, history_path, suround_view_path, bev_img_folders)  # 获取图像
-        bev_image_path = images[-1]  # 最后一个元素是bev图像
+        images = get_images(i, history_path, suround_view_path, bev_img_folders)  # 获取图像 / fetch images
+        bev_image_path = images[-1]  # 最后一个元素是bev图像 / last element is the BEV image
         # result = result_map.get(str(bev_image_path), "")
         # print(result)
         # FLAGE = 'True'
@@ -560,8 +649,8 @@ def create_train_json(scene_path, result_map):
         #     FLAGE = 'False'
         # decision, summary = extract_decision_and_summary(result)
         # import pdb; pdb.set_trace()
-        prompt = get_prompt(command=command, his_trajs=his_trajs, speed_content=speed_content)     # 获取 prompt
-        answer = get_answer(think_content=thick_content, bev_content=bev_content, future_trajs_pixel=future_trajs_pixel, future_trajs=future_trajs)  # 获取answer
+        prompt = get_prompt(command=command, his_trajs=his_trajs, speed_content=speed_content)     # 获取 prompt / build the prompt
+        answer = get_answer(think_content=thick_content, bev_content=bev_content, future_trajs_pixel=future_trajs_pixel, future_trajs=future_trajs)  # 获取answer / build the answer
         format_label = {
             "messages": [  
                 { "content": prompt, "role": "user" },
@@ -588,13 +677,13 @@ def create_train_json(scene_path, result_map):
     # with open(os.path.join(relative_scene_names, sub_train_json), 'w',encoding='utf-8') as f:
     #     f.write('\n'.join(target_points))
 def init_worker():
-    """初始化工作进程，加载result_map"""
+    """初始化工作进程，加载result_map / Initialize worker process and load result_map."""
     global RESULT_MAP
     if RESULT_MAP is None:
         RESULT_MAP = load_result_map()
 
 if __name__ == '__main__':
-    RESULT_JSONL_PATH = '/home/zhanglingjun.zlj/code/Bench2Drive/totaljsonfile/merged_output.jsonl'  # 必须替换为实际路径
+    RESULT_JSONL_PATH = '/home/zhanglingjun.zlj/code/Bench2Drive/totaljsonfile/merged_output.jsonl'  # 必须替换为实际路径 / must replace with the actual path
     # base_folder = '/mnt/nas-data-1/zhanglingjun.zlj1/data/bench2drive-val'
     # train_json = '/home/zhanglingjun.zlj/code/Bench2Drive/train_bev-test.jsonl'
     # sub_train_json = 'train_bev_v3.jsonl'
@@ -608,6 +697,7 @@ if __name__ == '__main__':
     # len_target_json = '/home/zhanglingjun.zlj/code/Bench2Drive/targetlength.jsonl'
     # sub_train_json = 'train_bev_v3.jsonl'
     # 遍历 base_folder 下的每个子文件夹
+    # Iterate over each subdirectory under base_folder
     scene_names = os.listdir(base_folder)
     scene_names = [os.path.join(base_folder, name) for name in scene_names if name[0] != '.']
     scene_names = [name for name in scene_names if os.path.isdir(name)]
@@ -619,7 +709,7 @@ if __name__ == '__main__':
             # pool.map(create_train_json, scene_names)
     # for scene_path in tqdm(scene_names):
     #     create_train_json(scene_path)
-    prefix_len = len(base_folder) + 1  # +1 是为了去掉路径分隔符 '/'
+    prefix_len = len(base_folder) + 1  # +1 是为了去掉路径分隔符 '/' / +1 to strip the path separator '/'
     relative_scene_names = [path[prefix_len:] for path in scene_names]
     
     with open(train_json, 'w', encoding='utf-8') as f:

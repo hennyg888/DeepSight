@@ -85,17 +85,20 @@ def test_vae(vae):
         # ori_image.save("ori_image.png")
 
         # 创建新图片，宽度为统一后的宽度，高度为三张图高度之和
+        # Create a new canvas: unified width, height = sum of all image heights
         image = Image.open(image_path)
         total_height = image.height + resized_image.height + ori_image.height + norm_image.height
         new_img = Image.new('RGB', (resized_image.width, total_height))
 
         # 粘贴三张图片到新图上
+        # Paste the images onto the new canvas
         new_img.paste(image, (0, 0))
-        new_img.paste(resized_image, (0, image.height))  # 第一张图在顶部
-        new_img.paste(ori_image, (0, image.height + resized_image.height))  # 第二张图在中间
-        new_img.paste(norm_image, (0, image.height + resized_image.height + ori_image.height))  # 第三张图在底部
+        new_img.paste(resized_image, (0, image.height))  # 第一张图在顶部 / first image at top
+        new_img.paste(ori_image, (0, image.height + resized_image.height))  # 第二张图在中间 / second image in middle
+        new_img.paste(norm_image, (0, image.height + resized_image.height + ori_image.height))  # 第三张图在底部 / third image at bottom
 
         # 保存结果
+        # Save the result
         new_img.save('vertical_concatenated_2.jpg')
 
 

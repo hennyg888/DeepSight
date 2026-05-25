@@ -6,6 +6,7 @@ import os
 def get_failed_route_ids(json_path):
     """
     根据提供的逻辑从 JSON 中提取失败的 route_id (数字部分)
+    Extract the numeric route_id of failed routes from the JSON file
     """
     with open(json_path, 'r') as f:
         data = json.load(f)
@@ -14,9 +15,10 @@ def get_failed_route_ids(json_path):
     records = data.get('_checkpoint', {}).get('records', [])
     
     for rd in records:
-        route_id_full = rd['route_id']  # 格式如 "RouteScenario_4937_rep0"
+        route_id_full = rd['route_id']  # 格式如 "RouteScenario_4937_rep0" / format: "RouteScenario_4937_rep0"
         
         # 提取中间的数字 ID (例如 4937)
+        # Extract the numeric route ID (e.g. 4937)
         match = re.search(r'RouteScenario_(\d+)_rep', route_id_full)
         if not match:
             continue
@@ -27,6 +29,7 @@ def get_failed_route_ids(json_path):
             is_success = True
             for k, v in rd['infractions'].items():
                 # 如果有违章（排除低速违章），则视为失败
+                # Treat as failure if there are infractions (excluding low-speed infractions)
                 if len(v) > 0 and k != 'min_speed_infractions':
                     is_success = False
                     break
@@ -42,6 +45,7 @@ def get_failed_route_ids(json_path):
 def filter_xml_by_ids(input_xml, output_xml, target_ids):
     """
     从原始 XML 中提取匹配 target_ids 的 route 节点
+    Extract route nodes matching target_ids from the original XML
     """
     if not os.path.exists(input_xml):
         print(f"错误: 找不到输入 XML 文件 {input_xml}")
@@ -51,10 +55,12 @@ def filter_xml_by_ids(input_xml, output_xml, target_ids):
     root = tree.getroot()
     
     # 创建一个新的根节点
+    # Create a new root element
     new_root = ET.Element('routes')
-    
+
     count = 0
     # 遍历 XML 中所有的 route
+    # Iterate over all route elements in the XML
     for route in root.findall('route'):
         route_id = route.get('id')
         if route_id in target_ids:
@@ -62,9 +68,11 @@ def filter_xml_by_ids(input_xml, output_xml, target_ids):
             count += 1
     
     # 保存新 XML
+    # Save the new XML
     new_tree = ET.ElementTree(new_root)
-    
+
     # 这里的 indent 主要是为了美化输出 (Python 3.9+)
+    # indent is used for pretty-printing (Python 3.9+)
     if hasattr(ET, 'indent'):
         ET.indent(new_tree, space="   ", level=0)
         
@@ -73,12 +81,15 @@ def filter_xml_by_ids(input_xml, output_xml, target_ids):
 
 if __name__ == "__main__":
     # 配置路径
+    # Configure paths
     JSON_FILE = '/home/zhanglingjun.zlj/code/Bench2Drive/mergejson1225/merged.json'
-    INPUT_XML = '/home/zhanglingjun.zlj/code/Bench2Drive/leaderboard/data/bench2drive220.xml' # 请修改为你原始的 XML 路径
+    INPUT_XML = '/home/zhanglingjun.zlj/code/Bench2Drive/leaderboard/data/bench2drive220.xml' # 请修改为你原始的 XML 路径 / replace with your original XML path
     OUTPUT_XML = '/home/zhanglingjun.zlj/code/Bench2Drive/leaderboard/data/failed_routes.xml'
-    
+
     # 1. 获取失败的 ID 集合
+    # 1. Get the set of failed route IDs
     failed_ids = get_failed_route_ids(JSON_FILE)
-    
+
     # 2. 过滤 XML
+    # 2. Filter the XML
     filter_xml_by_ids(INPUT_XML, OUTPUT_XML, failed_ids)

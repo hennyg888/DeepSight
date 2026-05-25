@@ -6,6 +6,7 @@ from transformers import AutoProcessor, AutoTokenizer, Qwen2_5_VLForConditionalG
 
 
 # 初始化模型
+# Initialize the model
 def init_model(model_path):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     processor = AutoProcessor.from_pretrained(model_path)
@@ -53,8 +54,10 @@ def add_bev_text(text):
     return text
 
 # 推理一个patch
+# Run inference on a single sample patch
 def infer_one_patch(tokenizer, processor, model, val_sample):
     # 构造message：
+    # Build the message
     messages = [
         {
             "role": "user",
@@ -65,7 +68,7 @@ def infer_one_patch(tokenizer, processor, model, val_sample):
         #     "content": '<think> None </think>\n<|start_bev_token|>'
         # }
     ]
-    text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)  # 他的作用是？
+    text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)  # 他的作用是？ / what does this do?
     text = add_bev_text(text)
     # from pudb import set_trace; set_trace()
     image_inputs, video_inputs = process_vision_info(messages)

@@ -30,7 +30,8 @@ class PID(object):
 class PIDController(object):
     # turn_KP=2.5, turn_KI=0.75, turn_KD=0.1, turn_n=20 zhangw
     # turn_KP=0.75, turn_KI=0.75, turn_KD=0.3, turn_n=40
-    # 修改 ki = 0.2/0.5 n=20, aim_dist=4.0 try ‘’‘1.1 0。2 0.4 
+    # 修改 ki = 0.2/0.5 n=20, aim_dist=4.0 try ‘’’1.1 0。2 0.4
+    # Tuned params: ki=0.2/0.5, n=20, aim_dist=4.0, tested with 1.1/0.2/0.4
     def __init__(self, turn_KP=1.1, turn_KI=0.2, turn_KD=0.4, turn_n=20, speed_KP=5.0, speed_KI=0.5,speed_KD=1.0, speed_n = 40,max_throttle=0.75, brake_speed=0.05,brake_ratio=1.1, clip_delta=0.25, aim_dist=3.5, angle_thresh=0.3, dist_thresh=10):
         
         self.turn_controller = PID(K_P=turn_KP, K_I=turn_KI, K_D=turn_KD, n=turn_n)
@@ -63,7 +64,7 @@ class PIDController(object):
             # magnitude of vectors, used for speed
             # desired_speed += np.linalg.norm(
             #         waypoints[i+1] - waypoints[i]) * 2.0 / num_pairs
-             # norm of vector points, used for steering 速度加快一点 todo
+             # norm of vector points, used for steering 速度加快一点 todo / speed up a little (todo)
             norm = np.linalg.norm((waypoints[i]))
             if abs(self.aim_dist-best_norm) > abs(self.aim_dist-norm):
                 aim = waypoints[i]

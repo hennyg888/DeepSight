@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 def visual_for_crop(scene_path, visual_path, k=5):
     # 定义路径
+    # Define file paths
     hz_index = list(range(0, 21, 5))
     scene_name = scene_path.split('/')[-1]
     bev_img_folders = [os.path.join(scene_path, 'camera', f'rgb_bev_{i}th-hz') for i in hz_index]
@@ -39,6 +40,7 @@ if __name__ == '__main__':
     os.makedirs(visual_path, exist_ok=True)
 
     # 遍历 base_folder 下的每个子文件夹
+    # Iterate over each subdirectory under base_folder
     scene_names = os.listdir(base_folder)
     scene_names = [os.path.join(base_folder, name) for name in scene_names if name[0] != '.']
     scene_names = [name for name in scene_names if os.path.isdir(name)]

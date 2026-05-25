@@ -278,11 +278,13 @@ class ADCollector():
         batch_target_tensors = []
         for i in range(batch_size):
             # 设置默认值
+            # Set default values
             samples[i]['_videos'] = None
             samples[i]['_audios'] = None  
             target_images = [] 
             for _ in range(self.time_step):
                 # 最后五张为 BEV 图像
+                # The last five images are BEV images
                 target_img_file = samples[i]['_images'].pop()
                 target_img = Image.open(target_img_file)
                 target_img_tensor = resize_and_normalize_transform(target_img)
@@ -291,11 +293,13 @@ class ADCollector():
         target_tensors = torch.stack(batch_target_tensors, dim=0) #(B, 5, 3, 256, 256)
 
         # 处理文本token
+        # Process text tokens
         keys = samples[0].keys()
         batch_samples = {k:[samples[i][k] for i in range(batch_size)] for k in keys}
         batch_samples = self.token_processor(batch_samples)
         
         # 处理 bev 相关的label
+        # Process BEV-related labels
         start_bev_token_id = self.tokenizer.convert_tokens_to_ids('<|start_bev_token|>')
         end_bev_token_id = self.tokenizer.convert_tokens_to_ids('<|end_bev_token|>')
         b, t, c, h, w = target_tensors.shape
@@ -318,9 +322,11 @@ class ADCollector():
             assert end_index - start_index - 1 == (h * w // self.patch_size ** 2 + 5) * t
         
         # 处理pv图像token for qwen_vit
+        # Process perspective-view image tokens for Qwen ViT
         samples = self.image_processor(samples)
-        
+
         # 处理bev图像token for vae
+        # Process BEV image tokens for VAE
         
         
         samples['pixel_values_bevs'] = target_tensors.to(samples["pixel_values"].dtype)
@@ -333,6 +339,7 @@ class ADCollector():
         samples['label_bev_masks'] = padding_label_bev_masks  #(b, l)
 
         # 处理时间步
+        # Process timestep inputs
         # time_step = torch.tensor([[0, 0.25, 0.5, 0.75, 1.0]] * batch_size)
         # samples['timestep'] = time_step.permute(1, 0).to(samples["pixel_values"].dtype)
         # samples['commands'] = torch.tensor(batch_command)

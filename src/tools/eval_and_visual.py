@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 def visual_for_crop(scene_path, visual_path, k=5):
     # 定义路径
+    # Set up file paths
     hz_index = list(range(0, 21, 5))
     scene_name = scene_path.split('/')[-1]
     bev_img_folders = [os.path.join(scene_path, 'camera', f'rgb_bev_{i}th-hz') for i in hz_index]
@@ -28,17 +29,20 @@ def visual_for_crop(scene_path, visual_path, k=5):
 
 def parse_prompt_and_answer(prompt, answer):
     # 解析 prompt
+    # Parse the prompt fields
     # command = prompt.split('Mission Goal: ')[1].split(' ')[0]
     targetpoint = prompt.split('These are the target pixel tokens: ')[1].split(' ')[0]
     his_trajs = prompt.split('Historical trajectory: ')[1].split(' ')[0]
     speed_content = prompt.split('current speed info: ')[1].split('\n')[0]
     # 解析 answer
+    # Parse the answer fields
     future_trajs_pixel = answer.split('future pixel tokens: ')[1].split('. </answer>')[0]
     future_trajs = answer.split('future waypoints: ')[1].split('. </answer>')[0]
 
     # print('原始label', command, speed_content, his_trajs, future_trajs, future_trajs_pixel)
 
     # 轨迹转坐标
+    # Convert trajectory strings to coordinate lists
     pattern = r"[-+]?\d*\.\d+|[-+]?\d+"
     matches = re.findall(pattern, future_trajs)
     future_trajs = [[float(matches[i]), float(matches[i+1])] for i in range(0, len(matches), 2)]
@@ -47,6 +51,7 @@ def parse_prompt_and_answer(prompt, answer):
     his_trajs = [[float(matches[i]), float(matches[i+1])] for i in range(0, len(matches), 2)]
 
     # 像素转坐标
+    # Convert pixel token strings to pixel coordinates
     pattern = r'<\|pixel_token_([-+]?\d+)\|>'
     matches = re.findall(pattern, future_trajs_pixel)
     future_trajs_pixel = [[int(matches[i+1]), int(matches[i])] for i in range(0, len(matches), 2)]
@@ -58,15 +63,18 @@ def parse_prompt_and_answer(prompt, answer):
 
 def parse_answer(answer):
     # 解析 answer
+    # Parse the answer fields
     future_trajs_pixel = answer.split('future pixel tokens: ')[1].split('. </answer>')[0]
     future_trajs = answer.split('future waypoints: ')[1].split('. </answer>')[0]
 
     # 轨迹转坐标
+    # Convert trajectory strings to coordinate lists
     pattern = r"[-+]?\d*\.\d+|[-+]?\d+"
     matches = re.findall(pattern, future_trajs)
     future_trajs = [[float(matches[i]), float(matches[i+1])] for i in range(0, len(matches), 2)]
 
     # 像素转坐标
+    # Convert pixel token strings to pixel coordinates
     pattern = r'<\|pixel_token_([-+]?\d+)\|>'
     matches = re.findall(pattern, future_trajs_pixel)
     future_trajs_pixel = [[int(matches[i+1]), int(matches[i])] for i in range(0, len(matches), 2)]
@@ -90,6 +98,7 @@ def transform_traj_for_visual(his_trajs, future_trajs, future_trajs_pixel, targe
 
 def transform_traj2pixel(trajs, cur_anno):
     # 自车坐标系转相机坐标系
+    # Convert ego-vehicle coordinates to camera coordinates
     trajs = np.array(trajs) # N, 2
     trajs = trajs[:, ::-1]
     trajs = np.concatenate([trajs, np.zeros((trajs.shape[0], 2))], axis=1) # N, 4
@@ -101,6 +110,7 @@ def transform_traj2pixel(trajs, cur_anno):
     trajs[:, 0] = 0
     # trajs[:, -2] = location_0[2]
     # 相机坐标系转像素坐标系
+    # Convert camera coordinates to pixel coordinates
     # world2ego = cur_anno["bounding_boxes"][0]["world2ego"]
     cam2ego = np.array(cur_anno["sensors"]["TOP_DOWN"]["cam2ego"])
     intrinsic = cur_anno["sensors"]["TOP_DOWN"]["intrinsic"]
@@ -124,6 +134,7 @@ def transform_traj2pixel(trajs, cur_anno):
 
 def transform_pixel2pixel(trajs_pixel):
     # 相对坐标系转绝对坐标系
+    # Convert relative pixel coordinates to absolute pixel coordinates
     for traj in trajs_pixel:
         traj[0] = 800 + traj[0] * 2
         traj[1] = 450 - traj[1] * 2
@@ -165,6 +176,7 @@ def visual_for_bev(label, pred=None, visual_path=None):
     # }
 
     # 绘制文字和可视化点：
+    # Render text and trajectory visualization points
     prompt = label['messages'][0]['content']
     answer = label['messages'][1]['content']
     speed_content, his_trajs, future_trajs, future_trajs_pixel, targetpointpixel = parse_prompt_and_answer(prompt, answer)
@@ -191,14 +203,17 @@ def visual_for_bev(label, pred=None, visual_path=None):
     dst_h, dst_w = 364, 644
     bev_h, bev_w = 256, 256
     # 创建画布：
+    # Create the canvas
     canvas = np.zeros((dst_h * 3 + bev_h * 2, dst_w * 4, 3), dtype=np.uint8)
     images = label['images']
-     # 绘制历史帧图像
+    # 绘制历史帧图像
+    # Draw historical frame images
     for i in range(4):
         img = cv2.imread(images[i])
         img = cv2.resize(img, (dst_w, dst_h))
         canvas[:dst_h, dst_w * i:dst_w * (i + 1), :] = img
     # 绘制环视图
+    # Draw surround-view images
     indexs = [5, 4, 6, 8, 7, 9]
     for i, index in enumerate(indexs):
         img = cv2.imread(images[index])
@@ -207,11 +222,13 @@ def visual_for_bev(label, pred=None, visual_path=None):
         canvas[dst_h * h_i:dst_h * (h_i + 1), dst_w * w_i:dst_w * (w_i + 1), :] = img
     for index in range(10, 15):
         # 绘制 BEV 图像
+        # Draw the BEV image
         target_img = images[index]
         target_img = cv2.imread(target_img)
         target_img = cv2.resize(target_img, (bev_w, bev_h))
         canvas[dst_h * 3 : dst_h * 3 + bev_h, bev_w * (index - 10) : bev_w * (index - 10) + bev_w, :] = target_img
     # 绘制文字和可视化BEV图
+    # Render text overlay and BEV visualization
     cv2.putText(canvas, visual_text, (dst_h * 3 + bev_h + 20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
     canvas[dst_h * 3 : dst_h * 3 + bev_img.shape[0], bev_w * 5 : bev_w * 5 + bev_img.shape[1], :] = bev_img
     cv2.imwrite(os.path.join(visual_path, cur_path_keys[-4] + '_' + cur_path_keys[-1] ), canvas)
@@ -226,6 +243,7 @@ def main_for_vis_train():
     os.makedirs(visual_path, exist_ok=True)
 
     # 遍历 base_folder 下的每个子文件夹
+    # Iterate over each subdirectory under base_folder
     print(f'开始读取{train_json}')
     with open(train_json, 'r') as f:
         lines = f.readlines()
@@ -245,6 +263,7 @@ def main_for_vis_infer():
 
     os.makedirs(visual_path, exist_ok=True)
     # 遍历 base_folder 下的每个子文件夹
+    # Iterate over each subdirectory under base_folder
     print(f'开始读取{gt_json}')
     with open(gt_json, 'r') as f:
         lines = f.readlines()
@@ -267,10 +286,12 @@ def main_for_vis_infer():
 
 def print_l2_loss(losses_1s, losses_2s):
     # 转为 numpy 数组
+    # Convert to NumPy arrays
     losses_1s = np.array(losses_1s)
     losses_2s = np.array(losses_2s)
 
     # 输出结果
+    # Print the results
     print(f"\n🎯 轨迹预测误差评估结果（仅 1s 和 2s）")
     print(f"{'时段':<6} {'样本数':<8} {'平均L2误差':<12} {'标准差':<10} {'最小值':<8} {'最大值':<8}")
     print("-" * 60)
@@ -291,6 +312,7 @@ def print_l2_loss(losses_1s, losses_2s):
     print_stat("2s", losses_2s)
 
     # 总体平均（只基于可用的1s和2s误差）
+    # Overall average (based only on available 1s and 2s errors)
     all_losses = np.concatenate((losses_1s, losses_2s))
     overall_avg = np.mean(all_losses)
     print(f"\navg (overall): {overall_avg:.6f}")

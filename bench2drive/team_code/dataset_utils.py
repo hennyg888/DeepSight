@@ -51,6 +51,7 @@ class DatasetUtils:
             data_dict['image_sizes'] = image_size
 
         # 重新设置问题和答案
+        # Re-set the question and answer
         text_question = self.set_prompt(sample_dict)
 
         texts = [
@@ -119,12 +120,15 @@ class DatasetUtils:
 
     def resample_trajectory(self, points, num_points):
         # 计算原始点之间的累积距离
+        # Compute cumulative distances between original points
         distances = np.sqrt(np.sum(np.diff(points[:, :2], axis=0)**2, axis=1))
         cumulative_distances = np.insert(np.cumsum(distances), 0, 0)
         # 创建新的均匀分布的距离
+        # Create new uniformly distributed distances
         new_distances = np.linspace(0, cumulative_distances[-1], num_points)
-        
+
         # 对每个坐标进行插值
+        # Interpolate each coordinate
         interp_func_x = interp1d(cumulative_distances, points[:, 0], kind='linear')
         interp_func_y = interp1d(cumulative_distances, points[:, 1], kind='linear')
         # interp_func_z = interp1d(cumulative_distances, points[:, 2], kind='linear')
@@ -138,6 +142,7 @@ class DatasetUtils:
 
     def get_path(self, navi_points):
         # 第一个点为当前点，向后面取16个点，80米的导航轨迹
+        # First point is the current position; take up to 16 points for an 80m navigation trajectory
         traj = [navi_points[0].reshape(1, 2)]
         dist = 0
         for i in range(len(navi_points)-1):

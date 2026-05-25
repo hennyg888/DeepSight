@@ -57,6 +57,7 @@ def get_entry_point():
     return 'QwenAgent'
 
 # 初始化模型
+# Initialize the model
 def init_model(model_path):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     processor = AutoProcessor.from_pretrained(model_path)
@@ -106,6 +107,7 @@ def get_images(i, history_path, suround_view_path):
         assert os.path.exists(img_file), f"{img_file} not exists"
         images.append(img_file)
     # 环视图图像
+    # Surround-view images
     for cam_path in suround_view_path:
         img_file = os.path.join(cam_path, f'{i:05d}.jpg')
         assert os.path.exists(img_file), f"{img_file} not exists"
@@ -473,7 +475,7 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
             dx, dy = round((u - 800)/2), round((450 - v)/2)
             # dx, dy = max(-255, min(255, dx)), max(-255, min(255, dy))
             if dy < -255 or dy > 255 or dx < -255 or dx > 255:
-                continue  # 跳过当前时间点，不添加到结果
+                continue  # 跳过当前时间点，不添加到结果 / skip this timestep, do not add to results
             dx, dy = f'<|pixel_token_{dx}|>',f'<|pixel_token_{dy}|>'
             bevtargetpoints.append(f'({dy},{dx})')
         bevtargetpoints = ','.join(bevtargetpoints)
@@ -491,9 +493,10 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
             
         his_trajs = format_trajs(ego_his_trajs)
 
-        prompt = get_prompt(command=command, his_trajs=his_trajs, speed_content=speed_content, bevtargetpoints=bevtargetpoints)     # 获取 prompt
+        prompt = get_prompt(command=command, his_trajs=his_trajs, speed_content=speed_content, bevtargetpoints=bevtargetpoints)     # 获取 prompt / build prompt
 
         # 环视图图像
+        # Surround-view images
         img_keys = ['CAM_FRONT','CAM_FRONT_LEFT','CAM_FRONT_RIGHT','CAM_BACK','CAM_BACK_LEFT','CAM_BACK_RIGHT']
         images = [str(self.save_path / 'camera' / f'{key}' / (f'{self.step:05}.jpg')) for key in img_keys]
         images = his_images + images
@@ -504,18 +507,19 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
     def sample_path_equidistant(self, waypoints, interval=5.0):
         """
         从起点开始沿路径进行等距离采样
-        
-        参数:
-        - waypoints: 路径点列表 [(x1,y1), (x2,y2), ...]
-        - interval: 采样间隔（L2距离单位）
-        
-        返回:
-        - 采样点列表 [(x1,y1), (x2,y2), ...]
+        Sample the path at equal intervals starting from the first waypoint
+
+        参数 / Args:
+        - waypoints: 路径点列表 [(x1,y1), (x2,y2), ...] / list of path points
+        - interval: 采样间隔（L2距离单位） / sampling interval in L2 distance units
+
+        返回 / Returns:
+        - 采样点列表 [(x1,y1), (x2,y2), ...] / list of sampled points
         """
         if len(waypoints) < 2:
-            return waypoints  # 不足两点直接返回
-        
-        samples = [waypoints[0]]  # 起点
+            return waypoints  # 不足两点直接返回 / fewer than 2 points, return as-is
+
+        samples = [waypoints[0]]  # 起点 / starting point
         current_dist = 0.0
         next_sample_dist = interval
         
@@ -525,6 +529,7 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
             seg_len = np.linalg.norm(p1 - p0)
             
             # 在当前线段上生成所有采样点
+            # Generate all sample points along the current segment
             while next_sample_dist <= current_dist + seg_len:
                 ratio = (next_sample_dist - current_dist) / seg_len
                 sample_point = p0 + ratio * (p1 - p0)
@@ -539,7 +544,8 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
         return samples
 
     def calculate_angle(self, v1, v2):
-        """计算两个向量之间的夹角（度）"""
+        """计算两个向量之间的夹角（度）
+        Compute the angle between two vectors in degrees"""
         dot = np.dot(v1, v2)
         norm1 = np.linalg.norm(v1)
         norm2 = np.linalg.norm(v2)
@@ -553,7 +559,8 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
         return angle
 
     def line_intersection(self, line1, line2):
-        """计算两条直线的交点"""
+        """计算两条直线的交点
+        Compute the intersection point of two lines"""
         xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
         ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
 
@@ -562,7 +569,7 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
 
         div = det(xdiff, ydiff)
         if abs(div) < 1e-8:
-            return None  # 平行线
+            return None  # 平行线 / parallel lines
 
         d = (det(*line1), det(*line2))
         x = det(d, xdiff) / div
@@ -572,64 +579,78 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
     def crop_sharp_turns_improved(self, waypoints, angle_threshold=5, max_extension=150.0):
         """
         使用前后两个点定义的直线交点裁剪急转弯点，并避免重复处理参与计算的点
-        
-        参数:
-        - waypoints: 原始轨迹点列表
-        - angle_threshold: 角度阈值（度），超过此值视为急转弯
-        - max_extension: 裁剪点与原点的最大允许距离
-        
-        返回:
-        - 裁剪后的轨迹点列表
+        Clip sharp-turn points using line intersections defined by neighboring points,
+        avoiding reprocessing points already used in a computation.
+
+        参数 / Args:
+        - waypoints: 原始轨迹点列表 / raw trajectory point list
+        - angle_threshold: 角度阈值（度），超过此值视为急转弯 / angle threshold in degrees above which a turn is sharp
+        - max_extension: 裁剪点与原点的最大允许距离 / max allowed distance from intersection to original point
+
+        返回 / Returns:
+        - 裁剪后的轨迹点列表 / clipped trajectory point list
         """
-        if len(waypoints) < 5:  # 至少需要5个点才能获取前后各两个点
+        if len(waypoints) < 5:  # 至少需要5个点才能获取前后各两个点 / need at least 5 points
             return waypoints
-        
+
         points = np.array(waypoints, dtype=float)
-        cropped = [tuple(points[0])]  # 保留起点
-        
+        cropped = [tuple(points[0])]  # 保留起点 / keep starting point
+
         # 处理第二个点
+        # Handle the second point
         cropped.append(tuple(points[1]))
-        
-        i = 2  # 从第三个点开始处理
-        while i < len(points) - 2:  # 直到倒数第三个点结束
+
+        i = 2  # 从第三个点开始处理 / start from the third point
+        while i < len(points) - 2:  # 直到倒数第三个点结束 / stop before the last two points
             # 计算前后向量
+            # Compute forward and backward vectors
             v1 = points[i] - points[i-1]
             v2 = points[i+1] - points[i]
-            
+
             # 计算夹角
+            # Compute the angle between the vectors
             angle = self.calculate_angle(v1, v2)
-            
+
             if angle > angle_threshold:
                 # 定义前面的直线：使用 (i-2, i-1) 这两个点
+                # Define the preceding line using points (i-2, i-1)
                 line1 = (tuple(points[i-2]), tuple(points[i-1]))
-                
+
                 # 定义后面的直线：使用 (i+1, i+2) 这两个点
+                # Define the following line using points (i+1, i+2)
                 line2 = (tuple(points[i+1]), tuple(points[i+2]))
-                
+
                 # 计算两条直线的交点
+                # Compute the intersection of the two lines
                 intersection = self.line_intersection(line1, line2)
-                
+
                 if intersection:
                     # 检查交点是否合理（距离不能太远）
+                    # Check that the intersection is within acceptable distance
                     dist_to_turn = np.linalg.norm(np.array(intersection) - points[i])
                     if dist_to_turn < max_extension:
                         # 用交点替代当前转弯点
+                        # Replace the sharp-turn point with the intersection
                         cropped.append(intersection)
-                        
+
                         # 关键改进：跳过被处理过的点
                         # 跳过当前点和后面两个参与计算的点
-                        i += 3  # 直接跳到 i+3
+                        # Key improvement: skip points that were already used in the computation
+                        i += 3  # 直接跳到 i+3 / jump directly to i+3
                         continue
-            
+
             # 没有急转弯或交点无效，保留当前点
+            # No sharp turn or invalid intersection; keep the current point
             cropped.append(tuple(points[i]))
-            i += 1  # 正常递增
-        
+            i += 1  # 正常递增 / normal increment
+
         # 添加剩余未处理的点
+        # Append any remaining unprocessed points
         for j in range(max(i, len(points)-2), len(points)):
             cropped.append(tuple(points[j]))
-        
+
         # 移除重复点
+        # Remove duplicate points
         unique_points = []
         for p in cropped:
             if not unique_points or np.linalg.norm(np.array(p) - np.array(unique_points[-1])) > 1e-5:
@@ -640,20 +661,22 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
     def get_sampled_points(self, waypoints, angle_threshold=15, max_extension=5000.0):
         """
         仅绘制等距离采样点（L2距离=5）
-        
-        参数:
-        - waypoints: 原始轨迹点列表
-        - color: 采样点颜色
-        - angle_threshold: 角度阈值（度）
-        - max_extension: 裁剪点与原点的最大允许距离
-        
-        返回:
-        - 绘制的散点对象
+        Get equidistant sampled points only (L2 interval = 5)
+
+        参数 / Args:
+        - waypoints: 原始轨迹点列表 / raw trajectory point list
+        - color: 采样点颜色 / color for sampled points
+        - angle_threshold: 角度阈值（度） / angle threshold in degrees
+        - max_extension: 裁剪点与原点的最大允许距离 / max allowed distance from intersection to original point
+
+        返回 / Returns:
+        - 绘制的散点对象 / scatter plot object (or list of sampled points)
         """
         if len(waypoints) < 2:
             return None
-        
+
         # 1. 移除重复点
+        # 1. Remove duplicate points
         filtered = []
         last = None
         for p in waypoints:
@@ -665,9 +688,11 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
             return None
         
         # 2. 应用急转弯裁剪
+        # 2. Apply sharp-turn clipping
         cropped = self.crop_sharp_turns_improved(filtered, angle_threshold, max_extension)
-        
+
         # 3. 等距离采样 (L2距离=5)
+        # 3. Equidistant sampling (L2 distance = 5)
         samples = self.sample_path_equidistant(cropped, interval=10)
         
         return samples
@@ -700,7 +725,7 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
                 }
                 format_content.append(c)
         messages = [ { "role": "user",  "content": format_content }]
-        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)  # 他的作用是？
+        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)  # 他的作用是？ / what does this do?
         text = self.add_bev_text(text)
         print(messages)
         # print(text)
@@ -718,6 +743,7 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
         # future_trajs_pixel = output_text.split('future pixel tokens: ')[1].split('. </answer>')[0]
         future_trajs = output_text.split('future waypoints: ')[1].split('. </answer>')[0]
         # 轨迹转坐标
+        # Parse trajectory string to coordinate list
         pattern = r"[-+]?\d*\.\d+|[-+]?\d+"
         matches = re.findall(pattern, future_trajs)
         future_trajs = [[float(matches[i+1]), float(matches[i])] for i in range(0, len(matches), 2)]
@@ -727,16 +753,20 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
     @torch.no_grad()
     def run_step(self, input_data, timestamp):
         # 更新carla原始输入数据
+        # Update raw CARLA input data
         if not self.initialized:
             self._init(input_data)
             tick_data = self.tick(input_data)
         else:
             tick_data = self.tick(input_data)
         # 保存当前帧数据
+        # Save current frame data
         self.save_cur_frame(tick_data)
         # 更改数据格式
+        # Reformat data
         message, images, bevpixel = self.format_message(tick_data)
         # 进行数据处理 processor
+        # Run processor for data preprocessing
         inputs = self.data_process(message, images)
         # model forward
         anwser_ids = self.model.generate(**inputs, max_new_tokens=15000)
@@ -795,7 +825,7 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
             self.pid_metadata, 
             outfile, 
             indent=4,
-            ensure_ascii=False  # 关键修复！
+            ensure_ascii=False  # 关键修复！ / critical fix: allow non-ASCII characters
         )
         outfile.close()
         # metric
@@ -848,6 +878,7 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
 
     def transform_pixel2pixel(self, trajs_pixel):
     # 相对坐标系转绝对坐标系
+    # Convert from relative coordinate frame to absolute coordinate frame
         for traj in trajs_pixel:
             traj[0] = 800 + traj[0]*2
             traj[1] = 450 - traj[1]*2

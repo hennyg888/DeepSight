@@ -44,6 +44,7 @@ if __name__ == '__main__':
         images_folders = [res_path]
     for images_folder in images_folders:
         # 判断images_folder是否为文件夹
+        # Check if images_folder is a directory
         if not os.path.isdir(images_folder):
             continue
         base_name = images_folder.split('/')[-1]

@@ -329,18 +329,19 @@ import numpy as np
 def sample_path_equidistant(waypoints, interval=5.0):
     """
     从起点开始沿路径进行等距离采样
-    
-    参数:
-    - waypoints: 路径点列表 [(x1,y1), (x2,y2), ...]
-    - interval: 采样间隔（L2距离单位）
-    
-    返回:
-    - 采样点列表 [(x1,y1), (x2,y2), ...]
+    Sample the path at equal intervals starting from the first waypoint
+
+    参数 / Args:
+    - waypoints: 路径点列表 [(x1,y1), (x2,y2), ...] / list of path points
+    - interval: 采样间隔（L2距离单位） / sampling interval in L2 distance units
+
+    返回 / Returns:
+    - 采样点列表 [(x1,y1), (x2,y2), ...] / list of sampled points
     """
     if len(waypoints) < 2:
-        return waypoints  # 不足两点直接返回
+        return waypoints  # 不足两点直接返回 / fewer than two points, return directly
     
-    samples = [waypoints[0]]  # 起点
+    samples = [waypoints[0]]  # 起点 / starting point
     current_dist = 0.0
     next_sample_dist = interval
     
@@ -350,6 +351,7 @@ def sample_path_equidistant(waypoints, interval=5.0):
         seg_len = np.linalg.norm(p1 - p0)
         
         # 在当前线段上生成所有采样点
+        # Generate all sample points on the current segment
         while next_sample_dist <= current_dist + seg_len:
             ratio = (next_sample_dist - current_dist) / seg_len
             sample_point = p0 + ratio * (p1 - p0)
@@ -360,7 +362,8 @@ def sample_path_equidistant(waypoints, interval=5.0):
     
     return samples
 def calculate_angle(v1, v2):
-    """计算两个向量之间的夹角（度）"""
+    """计算两个向量之间的夹角（度）
+    Compute the angle between two vectors in degrees"""
     dot = np.dot(v1, v2)
     norm1 = np.linalg.norm(v1)
     norm2 = np.linalg.norm(v2)
@@ -374,7 +377,8 @@ def calculate_angle(v1, v2):
     return angle
 
 def line_intersection(line1, line2):
-    """计算两条直线的交点"""
+    """计算两条直线的交点
+    Compute the intersection point of two lines"""
     xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
     ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
 
@@ -383,7 +387,7 @@ def line_intersection(line1, line2):
 
     div = det(xdiff, ydiff)
     if abs(div) < 1e-8:
-        return None  # 平行线
+        return None  # 平行线 / parallel lines
 
     d = (det(*line1), det(*line2))
     x = det(d, xdiff) / div
@@ -392,64 +396,79 @@ def line_intersection(line1, line2):
 def crop_sharp_turns_improved(waypoints, angle_threshold=5, max_extension=150.0):
     """
     使用前后两个点定义的直线交点裁剪急转弯点，并避免重复处理参与计算的点
-    
-    参数:
-    - waypoints: 原始轨迹点列表
-    - angle_threshold: 角度阈值（度），超过此值视为急转弯
-    - max_extension: 裁剪点与原点的最大允许距离
-    
-    返回:
-    - 裁剪后的轨迹点列表
+    Clip sharp-turn points using the intersection of lines defined by neighboring
+    points, avoiding reprocessing points already used in a computation.
+
+    参数 / Args:
+    - waypoints: 原始轨迹点列表 / list of raw trajectory points
+    - angle_threshold: 角度阈值（度），超过此值视为急转弯 / angle threshold (degrees) above which a turn is considered sharp
+    - max_extension: 裁剪点与原点的最大允许距离 / maximum allowed distance from intersection to original point
+
+    返回 / Returns:
+    - 裁剪后的轨迹点列表 / clipped trajectory point list
     """
-    if len(waypoints) < 5:  # 至少需要5个点才能获取前后各两个点
+    if len(waypoints) < 5:  # 至少需要5个点才能获取前后各两个点 / at least 5 points required to have two neighbors on each side
         return waypoints
     
     points = np.array(waypoints, dtype=float)
-    cropped = [tuple(points[0])]  # 保留起点
+    cropped = [tuple(points[0])]  # 保留起点 / retain the starting point
     
     # 处理第二个点
+    # Handle the second point
     cropped.append(tuple(points[1]))
     
-    i = 2  # 从第三个点开始处理
-    while i < len(points) - 2:  # 直到倒数第三个点结束
+    i = 2  # 从第三个点开始处理 / start processing from the third point
+    while i < len(points) - 2:  # 直到倒数第三个点结束 / stop at the third-to-last point
         # 计算前后向量
+        # Compute the forward and backward vectors
         v1 = points[i] - points[i-1]
         v2 = points[i+1] - points[i]
         
         # 计算夹角
+        # Compute the included angle
         angle = calculate_angle(v1, v2)
         
         if angle > angle_threshold:
             # 定义前面的直线：使用 (i-2, i-1) 这两个点
+            # Define the preceding line using points (i-2, i-1)
             line1 = (tuple(points[i-2]), tuple(points[i-1]))
             
             # 定义后面的直线：使用 (i+1, i+2) 这两个点
+            # Define the following line using points (i+1, i+2)
             line2 = (tuple(points[i+1]), tuple(points[i+2]))
             
             # 计算两条直线的交点
+            # Compute the intersection of the two lines
             intersection = line_intersection(line1, line2)
             
             if intersection:
                 # 检查交点是否合理（距离不能太远）
+                # Verify the intersection is within a reasonable distance
                 dist_to_turn = np.linalg.norm(np.array(intersection) - points[i])
                 if dist_to_turn < max_extension:
                     # 用交点替代当前转弯点
+                    # Replace the current turn point with the intersection
                     cropped.append(intersection)
                     
                     # 关键改进：跳过被处理过的点
+                    # Key improvement: skip points already processed
                     # 跳过当前点和后面两个参与计算的点
-                    i += 3  # 直接跳到 i+3
+                    # Skip the current point and the two following points used in the computation
+                    i += 3  # 直接跳到 i+3 / jump directly to i+3
                     continue
         
         # 没有急转弯或交点无效，保留当前点
+        # No sharp turn or invalid intersection — keep the current point
         cropped.append(tuple(points[i]))
-        i += 1  # 正常递增
+        i += 1  # 正常递增 / normal increment
     
     # 添加剩余未处理的点
+    # Append remaining unprocessed points
     for j in range(max(i, len(points)-2), len(points)):
         cropped.append(tuple(points[j]))
     
     # 移除重复点
+    # Remove duplicate points
     unique_points = []
     for p in cropped:
         if not unique_points or np.linalg.norm(np.array(p) - np.array(unique_points[-1])) > 1e-5:
@@ -460,21 +479,23 @@ def crop_sharp_turns_improved(waypoints, angle_threshold=5, max_extension=150.0)
 def plot_sampled_points(ax, waypoints, color='blue', angle_threshold=15, max_extension=5000.0):
     """
     仅绘制等距离采样点（L2距离=5）
-    
-    参数:
-    - ax: matplotlib轴对象
-    - waypoints: 原始轨迹点列表
-    - color: 采样点颜色
-    - angle_threshold: 角度阈值（度）
-    - max_extension: 裁剪点与原点的最大允许距离
-    
-    返回:
-    - 绘制的散点对象
+    Plot only equidistant sampled points (L2 interval = 5)
+
+    参数 / Args:
+    - ax: matplotlib轴对象 / matplotlib axes object
+    - waypoints: 原始轨迹点列表 / raw trajectory point list
+    - color: 采样点颜色 / color for sampled points
+    - angle_threshold: 角度阈值（度） / angle threshold in degrees
+    - max_extension: 裁剪点与原点的最大允许距离 / max allowed distance from intersection to original point
+
+    返回 / Returns:
+    - 绘制的散点对象 / scatter plot object
     """
     if len(waypoints) < 2:
         return None
     
     # 1. 移除重复点
+    # 1. Remove duplicate points
     filtered = []
     last = None
     for p in waypoints:
@@ -486,12 +507,15 @@ def plot_sampled_points(ax, waypoints, color='blue', angle_threshold=15, max_ext
         return None
     
     # 2. 应用急转弯裁剪
+    # 2. Apply sharp-turn cropping
     cropped = crop_sharp_turns_improved(filtered, angle_threshold, max_extension)
     
     # 3. 等距离采样 (L2距离=5)
+    # 3. Equidistant sampling (L2 interval = 5)
     samples = sample_path_equidistant(cropped, interval=10)
     
     # 4. 仅绘制采样点
+    # 4. Plot only the sampled points
     if samples:
         x = [p[0] for p in samples]
         y = [p[1] for p in samples]
@@ -499,24 +523,30 @@ def plot_sampled_points(ax, waypoints, color='blue', angle_threshold=15, max_ext
     
     return None
 def plot_cropped_route(ax, waypoints, color='blue'):
-    """使用射线交点裁剪方法绘制路线"""
+    """使用射线交点裁剪方法绘制路线
+    Draw a route using the ray-intersection clipping method"""
     if len(waypoints) < 2:
         return
     
     # 裁剪急转弯
+    # Clip sharp turns
     cropped_waypoints = crop_sharp_turns_improved(waypoints)
     
     # 提取坐标
+    # Extract coordinates
     x_coords = [p[0] for p in cropped_waypoints]
     y_coords = [p[1] for p in cropped_waypoints]
     
     # 绘制裁剪后的轨迹
+    # Draw the clipped trajectory
     ax.plot(x_coords, y_coords, '-', linewidth=2.0, color=color)
     
     # 绘制裁剪后的路点
+    # Draw the clipped waypoints
     ax.scatter(x_coords, y_coords, color='red', s=10, alpha=0.7)
     
     # 标记交点（绿色）
+    # Mark intersection points in green
     for i in range(1, len(cropped_waypoints)-1):
         if i < len(waypoints) - 1 and np.linalg.norm(
             np.array(cropped_waypoints[i]) - np.array(waypoints[i])
@@ -532,13 +562,14 @@ def calculate_average_distance(points):
     for i in range(len(points) - 1):
         point1 = np.array(points[i])
         point2 = np.array(points[i + 1])
-        distance = np.linalg.norm(point2 - point1)  # L2距离
+        distance = np.linalg.norm(point2 - point1)  # L2距离 / L2 distance
         distances.append(distance)
     
     return np.mean(distances), np.std(distances), min(distances), max(distances)
 
 def parse_xml_waypoints(xml_file):
-    """解析XML文件并提取所有路线的waypoints"""
+    """解析XML文件并提取所有路线的waypoints
+    Parse the XML file and extract waypoints for all routes"""
     tree = ET.parse(xml_file)
     root = tree.getroot()
     
@@ -567,7 +598,8 @@ def parse_xml_waypoints(xml_file):
     return routes
 
 def set_axes_with_fixed_ticks(ax, x_min, x_max, y_min, y_max, tick_interval=10):
-    """设置坐标轴范围和统一的刻度间隔"""
+    """设置坐标轴范围和统一的刻度间隔
+    Set axis limits and uniform tick intervals"""
     x_min_adj = math.floor(x_min / tick_interval) * tick_interval
     x_max_adj = math.ceil(x_max / tick_interval) * tick_interval
     y_min_adj = math.floor(y_min / tick_interval) * tick_interval
@@ -580,7 +612,8 @@ def set_axes_with_fixed_ticks(ax, x_min, x_max, y_min, y_max, tick_interval=10):
     ax.yaxis.set_major_locator(MultipleLocator(tick_interval))
 
 def save_waypoints_visualization(routes, output_dir="./waypoints_viz", batch_size=12, max_cols=3, figsize=(15, 15), tick_interval=10):
-    """将路线可视化成网格布局并包含密度信息，使用统一的刻度间隔"""
+    """将路线可视化成网格布局并包含密度信息，使用统一的刻度间隔
+    Visualize routes in a grid layout with density info and uniform tick intervals"""
     os.makedirs(output_dir, exist_ok=True)
     
     plt.rcParams.update({'font.size': 10})
@@ -616,13 +649,16 @@ def save_waypoints_visualization(routes, output_dir="./waypoints_viz", batch_siz
             ax = fig.add_subplot(rows, cols, i + 1)
             
             # 使用射线交点裁剪方法绘制路线
+            # Draw the route using the ray-intersection clipping method
             plot_sampled_points(ax, waypoints, color='blue')
             
             # 标记起点和终点
+            # Mark the start and end points
             ax.plot(x_coords[0], y_coords[0], 'go', markersize=6, label='Start')
             ax.plot(x_coords[-1], y_coords[-1], 'ro', markersize=6, label='End')
             
             # 计算密度信息
+            # Compute density information
             if len(x_coords) > 1 and len(y_coords) > 1:
                 x_range = max(x_coords) - min(x_coords)
                 y_range = max(y_coords) - min(y_coords)
@@ -663,6 +699,7 @@ def save_waypoints_visualization(routes, output_dir="./waypoints_viz", batch_siz
         print(f"批次 {batch_idx+1}/{num_batches} 已保存到: {output_path}")
     
     # 创建汇总图
+    # Create the overview summary figure
     fig_all = plt.figure(figsize=(15, 10))
     ax_all = fig_all.add_subplot(111)
     ax_all.set_title('All Routes - Overview', fontsize=16)

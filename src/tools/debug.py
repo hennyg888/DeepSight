@@ -16,7 +16,7 @@ def transform_next_bev_img(info_0, info_1, img):
     location_0 = info_0["bounding_boxes"][0]["location"]
     extent = info_0["bounding_boxes"][0]["extent"]
     location_0 = np.array(location_0 + [1])
-    location_0[2] = location_0[2] - extent[2] # 移动至地面
+    location_0[2] = location_0[2] - extent[2] # 移动至地面 / shift to ground level
     location_0 =  world2cam @ location_0
     Zc, Xc, Yc = location_0[:3]
     fx, fy = intrinsic[0][0], intrinsic[1][1]
@@ -26,12 +26,14 @@ def transform_next_bev_img(info_0, info_1, img):
     print(u, v)
 
     # 获取朝向角
+    # Get heading angles
     theta_0 = info_0["theta"]
     theta_1 = info_1["theta"]
     rotate = (theta_0 - theta_1) % (2 * np.pi)
     angle = rotate * 180 / np.pi
 
     # 对图像进行旋转和平移变换
+    # Apply rotation and translation transform to the image
     height, width = img.shape[:2]
     center = (800, 450)
     img = cv2.circle(img, center, 5, (0, 0, 255), -1)
@@ -100,8 +102,8 @@ if __name__ == '__main__':
                     1.0
                 ]
             ]
-    location =  [ 2459.2412109375,   2523.728271484375, 416.95556640625 ] # 相机位置
-    location =  [ 2459.241455078125, 2523.89111328125,   366.9558410644531  ] # 汽车位置
+    location =  [ 2459.2412109375,   2523.728271484375, 416.95556640625 ] # 相机位置 / camera location
+    location =  [ 2459.241455078125, 2523.89111328125,   366.9558410644531  ] # 汽车位置 / vehicle location
     world2cam = np.array(world2cam)
     location = np.array(location + [1])
     pix_location = world2cam @ location

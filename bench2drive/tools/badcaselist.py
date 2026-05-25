@@ -1,12 +1,14 @@
 import json
 
 # 假设你的JSON数据已加载到变量data中
+# Assume the JSON data has been loaded into variable data
 with open('/home/zhanglingjun.zlj/code/Bench2Drive/mergejson/1128220_0.json', 'r') as f:
     data = json.load(f)
 
 scenario_list = []
 
 # 检查JSON结构并提取所需字段
+# Check JSON structure and extract required fields
 exceptions = data.get("_checkpoint", {}).get("global_record", {}).get("meta", {}).get("exceptions", [])
 shibailist = []
 records = data['_checkpoint']['records']

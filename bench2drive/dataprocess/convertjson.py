@@ -2,10 +2,12 @@ import json
 import os
 
 def convert_legacy_json(legacy_path, new_path):
-    """将旧格式JSON转换为JSONL格式"""
+    """将旧格式JSON转换为JSONL格式
+    Convert legacy JSON format to JSONL format"""
     print(f"⏳ 开始转换: {legacy_path} → {new_path}")
     
     # 1. 加载整个旧JSON对象（需足够内存）
+    # 1. Load the entire legacy JSON object (requires sufficient memory)
     try:
         with open(legacy_path, 'r', encoding='utf-8') as f:
             legacy_data = json.load(f)
@@ -14,14 +16,17 @@ def convert_legacy_json(legacy_path, new_path):
         return False
     
     # 2. 验证数据结构
+    # 2. Validate the data structure
     if not isinstance(legacy_data, dict):
         print("❌ 无效数据格式: 需要是字典对象")
         return False
     
     # 3. 转换为JSONL
+    # 3. Convert to JSONL
     with open(new_path, 'w', encoding='utf-8') as f_out:
         for id_key, item in legacy_data.items():
             # 确保包含必要字段
+            # Ensure required fields are present
             if 'token' in item:
                 new_item = {
                     "id": item["token"],
@@ -35,6 +40,7 @@ def convert_legacy_json(legacy_path, new_path):
     return True
 
 # 使用示例
+# Usage example
 convert_legacy_json(
     legacy_path='/mnt/nas-data-1/zhanglingjun.zlj1/cot_pipline/result1/result20.json',
     new_path='/home/zhanglingjun.zlj/code/Bench2Drive/totaljsonfile/result20.jsonl'

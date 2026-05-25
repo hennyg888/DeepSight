@@ -4,14 +4,17 @@ DIR="/mnt/nas-data-1/zhanglingjun.zlj1/data/bench2drive-full"
 cd "$DIR" || exit 1
 
 # 获取CPU核心数作为默认并发数
+# Use CPU core count as default concurrency level
 CONCURRENT=128
 # 获取文件列表
+# Get the list of files
 mapfile -t files < <(ls -1 *.tar.gz 2>/dev/null)
 total=${#files[@]}
 
 echo "找到 $total 个tar.gz文件，使用 $CONCURRENT 个并发进程"
 
 # 定义并发处理函数
+# Define the concurrent processing function
 process_file() {
     local file="$1"
     local index="$2"
@@ -27,17 +30,21 @@ process_file() {
 }
 
 # 并发处理文件
+# Process files concurrently
 for i in "${!files[@]}"; do
     # 在后台启动子进程处理文件
+    # Launch a subprocess to process this file in the background
     process_file "${files[$i]}" "$((i+1))" "$total" &
-    
+
     # 控制并发数量
+    # Throttle concurrency to CONCURRENT jobs
     if (( (i % CONCURRENT) == (CONCURRENT - 1) )); then
         wait
     fi
 done
 
 # 等待所有后台进程完成
+# Wait for all background processes to finish
 wait
 
 echo "处理完成！"

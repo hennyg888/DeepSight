@@ -59,11 +59,12 @@ def is_within_radius(point, line, radius):
     return point.distance(p2) <= radius
 
 def geometry_local_coords(geometry: Any, origin: StateSE2) -> Any:
-    """ 将整个地图转化到自车坐标系下, 转化之后, 车头指向y """
-    a = np.sin(origin.heading)  # 这里由cos改为sin
-    b = -np.cos(origin.heading)  # 这里由sin改为-cos
-    d = np.cos(origin.heading)  # 这里由-sin改为cos
-    e = np.sin(origin.heading)  # 这里由cos改为sin
+    """ 将整个地图转化到自车坐标系下, 转化之后, 车头指向y
+    Transform the entire map to the ego vehicle coordinate frame, with vehicle heading pointing along y """
+    a = np.sin(origin.heading)  # 这里由cos改为sin / changed from cos to sin
+    b = -np.cos(origin.heading)  # 这里由sin改为-cos / changed from sin to -cos
+    d = np.cos(origin.heading)  # 这里由-sin改为cos / changed from -sin to cos
+    e = np.sin(origin.heading)  # 这里由cos改为sin / changed from cos to sin
     xoff = -origin.x
     yoff = -origin.y
     translated_geometry = affinity.affine_transform(geometry, [1, 0, 0, 1, xoff, yoff])
@@ -90,7 +91,7 @@ def interpolate_points(points, intersections, target_distance=1):
         while accumulated_distance + segment_length >= target_distance:
             ratio = (target_distance - accumulated_distance) / segment_length
             new_point = p1 + ratio * (p2 - p1)
-            new_intersection = intersection1 or intersection2  # 插入的点如果任意一个点是交叉点，则视为交叉点
+            new_intersection = intersection1 or intersection2  # 插入的点如果任意一个点是交叉点，则视为交叉点 / inserted point is an intersection if either neighbor is
             new_points.append(new_point)
             new_intersections.append(new_intersection)
             p1 = new_point
@@ -321,14 +322,14 @@ def get_map_participant(map_info):
 
 def get_format_output(clipped_map):
     '''
-    { 
-      当前点坐标:[x,y],
-      前一个点坐标: [prev_x, prev_y],
-      交通信号灯控制: {True,False},
-      是否是交叉路口的点：{True: [1,0], False: [0,1], None: [0,0]},
-      转向one-hot:{'R': [1, 0, 0], 'L': [0, 1, 0], 'S': [0, 0, 1], None: [0, 0, 0]}, 
-      到左右边界线的平均距离：[d_left, d_right],
-      是哪种类型的线one-hot:{"Center": [1,0,0], "StopSign": [0,1,0], "TrafficLight": [0,0,1]}
+    {
+      当前点坐标:[x,y],           # current point coords: [x, y]
+      前一个点坐标: [prev_x, prev_y],  # previous point coords
+      交通信号灯控制: {True,False},     # traffic light control: {True, False}
+      是否是交叉路口的点：{True: [1,0], False: [0,1], None: [0,0]},  # is intersection point one-hot
+      转向one-hot:{'R': [1, 0, 0], 'L': [0, 1, 0], 'S': [0, 0, 1], None: [0, 0, 0]},  # turn direction one-hot
+      到左右边界线的平均距离：[d_left, d_right],  # avg distances to left/right boundary
+      是哪种类型的线one-hot:{"Center": [1,0,0], "StopSign": [0,1,0], "TrafficLight": [0,0,1]}  # line type one-hot
     }
     '''
     max_lanes = 1000

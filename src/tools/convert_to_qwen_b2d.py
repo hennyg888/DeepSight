@@ -24,18 +24,21 @@ def load_bev_tokens(front_img_path, img_tokens, offsets=[0, 5, 10, 15]):
 
 def convert_to_bev_path_with_offset(img_path, offset=0):
     # 使用 Path 解析路径
+    # Parse the path using pathlib.Path
     p = Path(img_path)
-    
+
     # 提取文件名中的数字（如 00000）
+    # Extract the frame number from the filename (e.g. 00000)
     match = re.search(r'(\d+)\.jpg$', p.name)
     if not match:
         raise ValueError(f"无法从文件名中提取帧号: {p.name}")
     
-    frame_num = int(match.group(1))         # 转为整数
-    new_frame_num = frame_num + offset      # 加上偏移（比如 +5）
-    new_filename = f"{new_frame_num:05d}.jpg"  # 格式化为 000005 这种形式
+    frame_num = int(match.group(1))         # 转为整数 / convert to int
+    new_frame_num = frame_num + offset      # 加上偏移（比如 +5） / add offset (e.g. +5)
+    new_filename = f"{new_frame_num:05d}.jpg"  # 格式化为 000005 这种形式 / format as zero-padded string
 
     # 构造新路径：替换目录名为 rgb_bev，替换文件名为新编号
+    # Build new path: replace directory name with rgb_bev and use new frame number
     new_parent = str(p.parent).replace("rgb_back_right", "rgb_bev")
     
     return str(Path(new_parent) / new_filename)
@@ -51,6 +54,7 @@ def load_trajtoken_dict(json_file_path):
             try:
                 data = json.loads(line)
                 # 归一化路径，避免 /path 和 //path 不一致问题
+                # Normalize path to avoid /path vs //path inconsistencies
                 img_path = os.path.normpath(data["image_filename"])
                 trajtoken_dict[img_path] = data["trajtoken"]
             except Exception as e:
@@ -59,6 +63,7 @@ def load_trajtoken_dict(json_file_path):
     return trajtoken_dict
 
 # === 预加载一次 ===
+# === Pre-load once ===
 json_path = '/mnt/nas-data-1/zhanglingjun.zlj1/ad_data_process/abench2drive/converted/bevpixel1.json'
 trajtoken_map = load_trajtoken_dict(json_path)
 system="You're an autonomous vehicle's brain. Coordinates: X-axis is perpendicular, and Y-axis is parallel to the direction you're facing. You're at point (0,0). Units: meters. Based on the provided particulars, please output the CAM_FRONT image at the 0.5 second in the future and plan waypoints (0.5s intervals) for the next 3 seconds."

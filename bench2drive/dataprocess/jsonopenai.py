@@ -6,24 +6,28 @@ import random
 from openai import OpenAI
 
 # 初始化 OpenAI 兼容客户端
+# Initialize OpenAI-compatible client
 client = OpenAI(
     api_key="xxx",
     base_url="xxx"
 )
 
 def encode_image(image_path):
-    """将本地图片转为 base64 字符串"""
+    """将本地图片转为 base64 字符串
+    Convert a local image file to a base64-encoded string"""
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
 def call_multi_image_api(text_prompt, images):
     """
     调用多模态 API，传入文本 + 多张本地图片路径
+    Call the multimodal API with a text prompt and multiple local image paths
     """
     try:
         print(f"处理 {len(images)} 张图片")
         
         # 预定义图像描述（按顺序）
+        # Predefined image descriptions (in order)
         descriptions = [
             "这是CAM_FRONT前2.0s的图像，黑图代表没有数据:",
             "这是CAM_FRONT前1.5s的图像，黑图代表没有数据:",
@@ -41,6 +45,7 @@ def call_multi_image_api(text_prompt, images):
         
         for i, img_path in enumerate(images[0:10]):
             # 防止描述列表越界
+            # Prevent index out of bounds on the description list
             if i < len(descriptions):
                 desc = descriptions[i]
             else:
@@ -62,7 +67,7 @@ def call_multi_image_api(text_prompt, images):
         response = client.chat.completions.create(
             model="qwen3-vl-235b-a22b-instruct",
             messages=[{"role": "user", "content": content}],
-            timeout=120  # 120秒超时
+            timeout=120  # 120秒超时 / 120-second timeout
         )
         return response
 
@@ -72,13 +77,16 @@ def call_multi_image_api(text_prompt, images):
 
 if __name__ == "__main__":
     # 输入输出配置
+    # Input/output configuration
     input_json = '/mnt/nas-data-1/zhanglingjun.zlj1/cot_pipline/bench2drive_1208/split_20.jsonl'
-    output_file = '/home/zhanglingjun.zlj/code/Bench2Drive/totaljsonfile/result20.jsonl'  # 改为 .jsonl 后缀
+    output_file = '/home/zhanglingjun.zlj/code/Bench2Drive/totaljsonfile/result20.jsonl'  # 改为 .jsonl 后缀 / use .jsonl extension
 
     # 创建输出目录
+    # Create output directory
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    
+
     # 1. 构建已处理ID集合 (内存友好)
+    # 1. Build the set of already-processed IDs (memory-friendly)
     processed_ids = set()
     if os.path.exists(output_file):
         print("⏳ 加载已处理ID集合...")
@@ -87,10 +95,11 @@ if __name__ == "__main__":
                 try:
                     processed_ids.add(json.loads(line)["id"])
                 except (json.JSONDecodeError, KeyError):
-                    continue  # 跳过无效行
+                    continue  # 跳过无效行 / skip invalid line
         print(f"✅ 已加载 {len(processed_ids)} 个已处理ID")
 
     # 2. 流式处理输入文件
+    # 2. Stream-process the input file
     print("🚀 开始处理新数据...")
     with open(input_json, 'r', encoding='utf-8') as infile:
         for line in infile:
@@ -107,6 +116,7 @@ if __name__ == "__main__":
             user_content = item['prompt']
 
             # 3. 重试机制（保持不变）
+            # 3. Retry mechanism (unchanged)
             response = None
             for attempt in range(1, 6):  # 最多5次重试
                 print(f"\n[ID: {id}] 第 {attempt}/5 次尝试...")
@@ -129,6 +139,7 @@ if __name__ == "__main__":
                 continue
 
             # 4. 增量写入结果 (核心优化)
+            # 4. Incrementally write results (key optimization)
             result = {
                 "id": id,
                 "images_path": images_path,

@@ -109,6 +109,7 @@ def run_eval(
                 all_predict_images.append(predict_image[0])
 
         # 可视化查看
+        # Visualize and inspect results
         visual_for_eval(all_target_images, all_predict_images, losses, sample, os.path.join(result_path, 'visual'))
 
 
@@ -128,6 +129,7 @@ def visual_for_eval(all_target_images, all_predict_images, losses, sample, visua
     dst_h, dst_w = 364, 644
     bev_h, bev_w = 256, 256
     # 创建画布：
+    # Create the canvas
     canvas = np.zeros((dst_h * 3 + bev_h * 2, dst_w * 4, 3), dtype=np.uint8)
     
     
@@ -136,11 +138,13 @@ def visual_for_eval(all_target_images, all_predict_images, losses, sample, visua
     clip_name = img_file.split('/')[-4]
     image_name = os.path.basename(img_file)
     # 绘制历史帧图像
+    # Draw historical frame images
     for i in range(4):
         img = cv2.imread(sample['_images'][i])
         img = cv2.resize(img, (dst_w, dst_h))
         canvas[:dst_h, dst_w * i:dst_w * (i + 1), :] = img
     # 绘制环视图
+    # Draw surround-view images
     indexs = [5, 4, 6, 8, 7, 9]
     for i, index in enumerate(indexs):
         img = cv2.imread(sample['_images'][index])
@@ -149,14 +153,17 @@ def visual_for_eval(all_target_images, all_predict_images, losses, sample, visua
         canvas[dst_h * h_i:dst_h * (h_i + 1), dst_w * w_i:dst_w * (w_i + 1), :] = img
     for index in range(len(all_predict_images)):
         # 绘制 BEV 图像
+        # Draw the ground-truth BEV image
         target_img = all_target_images[index]
         target_img = cv2.cvtColor(np.array(target_img), cv2.COLOR_RGB2BGR)
         canvas[dst_h * 3 : dst_h * 3 + bev_h, bev_w * index : bev_w * (index + 1), :] = target_img
         # 绘制预测 BEV 图像
+        # Draw the predicted BEV image
         predict_img = all_predict_images[index]
         predict_img = cv2.cvtColor(np.array(predict_img), cv2.COLOR_RGB2BGR)
         canvas[dst_h * 3 + bev_h : dst_h * 3 + bev_h * 2, bev_w * index : bev_w * (index + 1), :] = predict_img
         # 绘制损失
+        # Render the loss value
         loss = losses[index]
         cv2.putText(canvas, f"loss: {loss:.6f}", (bev_w * index + 20, dst_h * 3 + bev_h + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
     

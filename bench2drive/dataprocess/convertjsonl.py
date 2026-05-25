@@ -6,6 +6,7 @@ INPUT_JSON = "/home/zhanglingjun.zlj/code/road2rome/gt_indices_train_full.json"
 OUTPUT_JSONL = "/home/zhanglingjun.zlj/code/road2rome/gt_indices_train_fulljsonl.jsonl"
 
 # 先快速统计总 key 数量（可选，用于进度条 total）
+# Quickly count total key count first (optional, used for progress bar total)
 print("Counting total keys... (this may take a moment)")
 total_keys = 0
 with open(INPUT_JSON, 'rb') as f:
@@ -15,8 +16,9 @@ with open(INPUT_JSON, 'rb') as f:
 print(f"Total keys to process: {total_keys}")
 
 # 开始转换
+# Start conversion
 with open(INPUT_JSON, 'rb') as fin, open(OUTPUT_JSONL, 'w', encoding='utf-8') as fout:
-    items = ijson.kvitems(fin, '')  # 流式遍历根对象的 key-value
+    items = ijson.kvitems(fin, '')  # 流式遍历根对象的 key-value / stream key-value pairs from root object
     with tqdm(total=total_keys, desc="Converting", unit="keys") as pbar:
         for k, v in items:
             if isinstance(v, dict) and 'CAM_FRONT' in v:

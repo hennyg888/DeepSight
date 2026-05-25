@@ -17,11 +17,13 @@ def get_images(i, history_path, suround_view_path, bev_img_folders):
         assert os.path.exists(img_file), f"{img_file} not exists"
         images.append(img_file)
     # 环视图图像
+    # Surround-view images
     for cam_path in suround_view_path:
         img_file = os.path.join(cam_path, f'{i:05d}.jpg')
         assert os.path.exists(img_file), f"{img_file} not exists"
         images.append(img_file)
     # bev 图像
+    # BEV images
     for bev_img_folder in bev_img_folders:
         bev_img = os.path.join(bev_img_folder, f'{i:05d}.jpg')
         assert os.path.exists(bev_img), f"{bev_img} not exists"
@@ -70,11 +72,14 @@ def format_trajs(trajs):
 
 def parse_anno(index, all_annos):
     # 获取控制命令
+    # Get the control command
     command = all_annos[index]['next_command']
     # 获取速度信息
+    # Get speed information
     speed_content = f'speed: {all_annos[index]["speed"]:.2f}, acceleration: {all_annos[index]["acceleration"][0]:.2f}'
     thick_content = None
     # 获取历史轨迹
+    # Get historical trajectory
     world2ego = np.array(all_annos[index]['bounding_boxes'][0]['world2ego'])
     world2cam = np.array(all_annos[index]["sensors"]["TOP_DOWN"]['world2cam'])
     intrinsic = np.array(all_annos[index]['sensors']["TOP_DOWN"]["intrinsic"])
@@ -93,6 +98,7 @@ def parse_anno(index, all_annos):
         his_trajs.insert(0, his_traj)
     his_trajs = format_trajs(his_trajs)
     # 获取未来轨迹标签
+    # Get future trajectory labels
     future_trajs = []
     for i in range(1, 5):
         future_index = index + i * 5
@@ -102,13 +108,14 @@ def parse_anno(index, all_annos):
         future_trajs.append(future_traj)
     future_trajs = format_trajs(future_trajs)
     # 获取未来轨迹像素标签
+    # Get future trajectory pixel labels
     future_trajs_pixel = []
     for i in range(1, 5):
         future_index = index + i * 5
         future_traj = all_annos[future_index]['bounding_boxes'][0]["location"]
         extent = all_annos[future_index]["bounding_boxes"][0]["extent"]
         future_traj = np.array(future_traj + [1])
-        future_traj[2] = future_traj[2] - extent[2] # 移动至地面
+        future_traj[2] = future_traj[2] - extent[2] # 移动至地面 / shift to ground level
         future_traj =  world2cam @ future_traj
         Zc, Xc, Yc = future_traj[:3]
         fx, fy = intrinsic[0][0], intrinsic[1][1]
@@ -123,6 +130,7 @@ def parse_anno(index, all_annos):
     future_trajs_pixel = f'[{future_trajs_pixel}]'
 
     # 获取 bev content
+    # Get BEV content tokens
     t, h, w, patchsize, n_cls, n_register = 5, 256, 256, 16, 1, 4
     l = t * (h * w // (patchsize ** 2) + n_cls + n_register)
     bev_content = []
@@ -136,6 +144,7 @@ def parse_anno(index, all_annos):
 def create_train_json(scene_path):
     print(f"Processing {scene_path}")
     # 设置文件路径：
+    # Set up file paths
     anno_path = os.path.join(scene_path, 'anno')
     hz_index = list(range(0, 21, 5))
     bev_img_folders = [os.path.join(scene_path, 'camera', f'rgb_bev_{i}th-hz') for i in hz_index]
@@ -143,6 +152,7 @@ def create_train_json(scene_path):
     suround_view_path = ['front', 'front_left', 'front_right', 'back', 'back_left', 'back_right']
     suround_view_path = [os.path.join(scene_path, 'camera', f'rgb_{cam}') for cam in suround_view_path]
     # 遍历获取内容
+    # Iterate and collect annotation data
     anno_files = os.listdir(anno_path)
     anno_files = [f for f in anno_files if f.endswith('.json')]
     all_annos = [json.load(open(os.path.join(anno_path, f))) for f in anno_files]
@@ -198,9 +208,10 @@ c. [推理结果进行总结]
     for i in range(1, nums-20):
         try:
              # 解析训练标注
+             # Parse training annotation
         #     # import pdb; pdb.set_trace()
             his_trajs, speed_content, command, thick_content, bev_content, future_trajs_pixel, future_trajs = parse_anno(i, all_annos)
-            images = get_images(i, history_path, suround_view_path, bev_img_folders)  # 获取图像
+            images = get_images(i, history_path, suround_view_path, bev_img_folders)  # 获取图像 / get images
             # prompt = get_prompt(command=command, his_trajs=his_trajs, speed_content=speed_content)     # 获取 prompt
             # answer = get_answer(think_content=thick_content, bev_content=bev_content, future_trajs_pixel=future_trajs_pixel, future_trajs=future_trajs)  # 获取answer
             textprompt1 = "当前驾驶任务目标: " + COMMAND_DICT[command] + "\n"
@@ -235,6 +246,7 @@ if __name__ == '__main__':
     train_json = '/mnt/nas-data-1/zhanglingjun.zlj1/Bench2Drive/train_bev-test1.jsonl'
     sub_train_json = 'train_bev_v3.jsonl'
     # 遍历 base_folder 下的每个子文件夹
+    # Iterate over each subdirectory in base_folder
     scene_names = os.listdir(base_folder)
     scene_names = [os.path.join(base_folder, name) for name in scene_names if name[0] != '.']
     scene_names = [name for name in scene_names if os.path.isdir(name)]

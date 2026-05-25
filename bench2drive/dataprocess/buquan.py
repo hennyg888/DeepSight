@@ -3,25 +3,31 @@ import json
 def extract_dicts_with_key_6(json_file_path, output_file_path):
     """
     提取所有第一个元素为6的内部列表的第二个元素（字典）
+    Extract the second element (dict) of all inner lists whose first element is 6
     """
     # 读取JSON文件
+    # Read the JSON file
     with open(json_file_path, 'r') as f:
         data = json.load(f)
     
     # 查找所有第一个元素是6的项
+    # Find all items whose first element is 6
     extracted_data = []
     for item in data:
         # 检查是否是列表，长度至少为2，且第一个元素是6
+        # Check if item is a list with at least 2 elements and first element is 6
         if isinstance(item, list) and len(item) >= 2 and item[0] == 11:
             extracted_data.append(item[1])
-    
+
     # 保存提取结果
+    # Save the extracted results
     with open(output_file_path, 'w') as f:
         json.dump(extracted_data, f, indent=2)
     
     return extracted_data
 
 # 使用脚本
+# Usage
 json_path = '/home/zhanglingjun.zlj/code/Bench2Drive/town2.json'
 output_path = '/home/zhanglingjun.zlj/code/Bench2Drive/extracted_6.json'
 

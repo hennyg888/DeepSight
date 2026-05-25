@@ -507,6 +507,7 @@ class VadAgent(autonomous_agent.AutonomousAgent):
     
     def transform_pixel2pixel(trajs_pixel):
     # 相对坐标系转绝对坐标系
+    # Convert from relative coordinate frame to absolute coordinate frame
         for traj in trajs_pixel:
             traj[0] = 512 + traj[0] * 2
             traj[1] = 512 - traj[1] * 2

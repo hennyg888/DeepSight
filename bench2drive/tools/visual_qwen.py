@@ -53,16 +53,18 @@ def get_future_trajectory(worldpoint, current_idx, max_idx):
     trajectory = []
     
     # 尝试添加当前点和未来的几个点
+    # Try to add the current point and the next few future points
     # for offset in [5, 10, 15, 20]:
     for offset in [5]:
         idx = current_idx + offset
-        if str(idx) in worldpoint:  # 检查该索引是否存在
+        if str(idx) in worldpoint:  # 检查该索引是否存在 / check if this index exists
             trajectory.append(worldpoint[str(idx)]['location'])
     
     return trajectory if trajectory else None
 
 def visual_for_crop(scene_path, visual_path, k=5):
     # 定义路径
+    # Define file paths
     hz_index = list(range(0, 21, 5))
     scene_name = scene_path.split('/')[-1]
     bev_img_folders = [os.path.join(scene_path, 'camera', f'rgb_bev_{i}th-hz') for i in hz_index]
@@ -81,15 +83,18 @@ def visual_for_crop(scene_path, visual_path, k=5):
 
 def parse_prompt_and_answer(prompt, answer):
     # 解析 prompt
+    # Parse the prompt
     # command = prompt.split('Mission Goal: ')[1].split(' ')[0]
     command = "4"
     his_trajs = prompt.split('Historical trajectory: ')[1].split(' ')[0]
     speed_content = prompt.split('current speed info: ')[1].split('\n')[0]
     # 解析 answer
+    # Parse the answer
     future_trajs_pixel = answer.split('future pixel tokens: ')[1].split('. </answer>')[0]
     future_trajs = answer.split('future waypoints: ')[1].split('. </answer>')[0]
 
     # 轨迹转坐标
+    # Parse trajectory string to coordinate list
     pattern = r"[-+]?\d*\.\d+|[-+]?\d+"
     matches = re.findall(pattern, future_trajs)
     future_trajs = [[float(matches[i]), float(matches[i+1])] for i in range(0, len(matches), 2)]
@@ -98,6 +103,7 @@ def parse_prompt_and_answer(prompt, answer):
     his_trajs = [[float(matches[i]), float(matches[i+1])] for i in range(0, len(matches), 2)]
 
     # 像素转坐标
+    # Parse pixel token string to pixel coordinate list
     pattern = r'<\|pixel_token_([-+]?\d+)\|>'
     matches = re.findall(pattern, future_trajs_pixel)
     future_trajs_pixel = [[int(matches[i+1]), int(matches[i])] for i in range(0, len(matches), 2)]
@@ -107,15 +113,18 @@ def parse_prompt_and_answer(prompt, answer):
 
 def parse_answer(answer):
     # 解析 answer
+    # Parse the answer
     future_trajs_pixel = answer.split('future pixel tokens: ')[1].split('. </answer>')[0]
     future_trajs = answer.split('future waypoints: ')[1].split('. </answer>')[0]
 
     # 轨迹转坐标
+    # Parse trajectory string to coordinate list
     pattern = r"[-+]?\d*\.\d+|[-+]?\d+"
     matches = re.findall(pattern, future_trajs)
     future_trajs = [[float(matches[i]), float(matches[i+1])] for i in range(0, len(matches), 2)]
 
     # 像素转坐标
+    # Parse pixel token string to pixel coordinate list
     pattern = r'<\|pixel_token_([-+]?\d+)\|>'
     matches = re.findall(pattern, future_trajs_pixel)
     future_trajs_pixel = [[int(matches[i+1]), int(matches[i])] for i in range(0, len(matches), 2)]
@@ -173,6 +182,7 @@ def transform_traj2ego(trajs, bounding_boxes):
 
 def transform_pixel2pixel(trajs_pixel):
     # 相对坐标系转绝对坐标系
+    # Convert from relative coordinate frame to absolute coordinate frame
     for traj in trajs_pixel:
         traj[0] = 512 + traj[0] * 2
         traj[1] = 512 - traj[1] * 2
@@ -214,6 +224,7 @@ def visual_for_bev(all_res, index, route_points, scene_path, visual_path=None):
         }
 
     # 绘制文字和可视化点：
+    # Draw text and visualization points
     prompt = all_res[index]['prompt']
     answer = all_res[index]['output']
     command, speed_content, his_trajs, future_trajs, future_trajs_pixel = parse_prompt_and_answer(prompt, answer)
@@ -248,6 +259,7 @@ def visual_for_bev(all_res, index, route_points, scene_path, visual_path=None):
     front_img = cv2.resize(front_img, (dst_w, dst_h))
     visual_img = np.concatenate([front_img, bev_img], axis=1)
     # 绘制文字和可视化BEV图
+    # Draw text and visualize the BEV image
     cv2.putText(visual_img, visual_text, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
     if visual_path is not None:
         cv2.imwrite(os.path.join(visual_path, f'{index:05}.jpg'), visual_img)
@@ -258,6 +270,7 @@ def main_for_eval_bench2drive():
         data = json.load(f)
     scenario_list = []
     # 检查JSON结构并提取所需字段
+    # Check JSON structure and extract required fields
     exceptions = data.get("_checkpoint", {}).get("global_record", {}).get("meta", {}).get("exceptions", [])
     shibailist = []
     records = data['_checkpoint']['records']
@@ -294,15 +307,17 @@ def main_for_eval_bench2drive():
         with open(location_json_path, 'r') as file:
             worldpoint = json.load(file)
         # bev 视角可视化
+        # BEV perspective visualization
         num_frame = len(all_mid_res)
         visual_path = os.path.join(scene_path, 'visual_bev')
         os.makedirs(visual_path, exist_ok=True)
         for i in tqdm(range(num_frame - 1)):
-            max_idx = max(int(k) for k in worldpoint.keys())  # 获取最大的索引
+            max_idx = max(int(k) for k in worldpoint.keys())  # 获取最大的索引 / get the maximum index
             route_points = get_future_trajectory(worldpoint, i, max_idx)
             visual_for_bev(all_mid_res, i, route_points, scene_path, visual_path)
 
         # 将可视化的图转为视频
+        # Convert the visualization images into a video
         visual_img_paths = os.listdir(visual_path)
         visual_img_paths = [os.path.join(visual_path, visual_img_path) for visual_img_path in visual_img_paths if visual_img_path.endswith('.jpg')]
         visual_img_paths = sorted(visual_img_paths)

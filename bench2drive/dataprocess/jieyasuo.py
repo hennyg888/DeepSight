@@ -40,11 +40,14 @@ import numpy as np
 import json
 
 # 1. 读取 .npy 文件
+# 1. Load the .npy file
 array = np.load('/home/zhanglingjun.zlj/code/Bench2Drive/arr.npy',allow_pickle=True)
 
 # 2. 将 NumPy 数组转换为 Python 原生类型
+# 2. Convert NumPy arrays to native Python types
 def numpy_to_python(obj):
-    """递归转换 NumPy 对象为 Python 原生类型"""
+    """递归转换 NumPy 对象为 Python 原生类型
+    Recursively convert NumPy objects to native Python types"""
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     elif isinstance(obj, np.generic):
@@ -56,9 +59,11 @@ def numpy_to_python(obj):
     return obj
 
 # 3. 转换数据并保存为 JSON
+# 3. Convert data and save as JSON
 python_data = numpy_to_python(array)
 
 # 4. 保存为 JSON 文件
+# 4. Save as JSON file
 with open('/home/zhanglingjun.zlj/code/Bench2Drive/town2.json', 'w') as f:
     json.dump(python_data, f, indent=2)
 

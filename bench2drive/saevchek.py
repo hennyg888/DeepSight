@@ -8,25 +8,30 @@ from transformers import AutoTokenizer, Qwen2_5_VLForConditionalGeneration,AutoP
 def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", ref_config_path="/mnt/nas-data-1/zhanglingjun.zlj1/modelversion/v3_bev_target_fulldata_resume/checkpoint-19813"):
     """
     从 GPU 直接保存 Qwen2.5VL 模型权重到本地（无需原始文件路径）
-    
-    参数:
-        model: 已加载到 GPU 的 Qwen2.5VL 模型对象
-        save_dir: 保存目录路径
-        ref_config_path: 配置参考路径（用于获取完整配置）
+    Save Qwen2.5VL model weights directly from GPU to disk (no original file path needed)
+
+    参数 / Args:
+        model: 已加载到 GPU 的 Qwen2.5VL 模型对象 / Qwen2.5VL model object loaded on GPU
+        save_dir: 保存目录路径 / output directory path
+        ref_config_path: 配置参考路径（用于获取完整配置）/ reference config path for complete configuration
     """
     # 1. 验证模型位置
+    # 1. Verify model device location
     current_device = next(model.parameters()).device
     print(f"✅ 模型当前在 {current_device} 上")
     
     # 2. 确保参考配置路径有效
+    # 2. Ensure the reference config path is valid
     if not os.path.exists(ref_config_path):
         raise FileNotFoundError(f"参考配置路径不存在: {ref_config_path}")
     print(f"🔍 使用参考配置: {ref_config_path}")
 
     # 3. 检查内存并安全转移权重到 CPU
+    # 3. Check memory and safely transfer weights to CPU
     print("\n🔍 检查 CPU 内存...")
     try:
         # 尝试全精度 (FP32)
+        # Try full precision (FP32)
         print("尝试全精度 (FP32) 保存...")
         model = model.cpu()
         print("✅ 全精度转移成功 (需 ~12GB RAM)")
@@ -38,10 +43,12 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
             raise
 
     # 4. 创建保存目录
+    # 4. Create the save directory
     os.makedirs(save_dir, exist_ok=True)
     print(f"\n📦 创建保存目录: {save_dir}")
 
     # 5. 复制参考配置文件（关键！因为原始文件已删除）
+    # 5. Copy reference config files (critical: original files have been deleted)
     print(" COPYING REFERENCE CONFIG FILES...")
     config_files = [
         "config.json", 
@@ -61,6 +68,7 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
             print(f"  ✗ {file} (跳过)")
 
     # 6. 保存模型权重（处理大文件）
+    # 6. Save model weights (handle large files)
     print("\nSAVING MODEL WEIGHTS...")
     state_dict = model.state_dict()
     
@@ -68,7 +76,7 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
     # from transformers.modeling_utils import shard_checkpoint
     state_dict = model.state_dict()
     
-    # ========== 修复点：替换分片逻辑 ==========
+    # ========== 修复点：替换分片逻辑 ========== # Fix: replace the sharding logic
     print("⚠️ 使用兼容分片方案 (支持旧版 Transformers)...")
     max_shard_bytes = 5 * 1024**3  # 2GB
     current_shard = {}
@@ -101,15 +109,17 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
             index["weight_map"][k] = shard_name
     
     index["metadata"] = {"total_size": sum(tensor.numel() * tensor.element_size() for tensor in state_dict.values())}
-    # ========== 修复结束 ==========
+    # ========== 修复结束 ========== # End of fix
     
     
     # 保存每个分片
+    # Save each shard
     for shard_file, shard in tqdm(sharded_state.items(), desc="Writing shards"):
         shard_path = os.path.join(save_dir, shard_file)
         torch.save(shard, shard_path)
     
     # 保存索引文件
+    # Save the index file
     if index:
         index_path = os.path.join(save_dir, "pytorch_model.bin.index.json")
         with open(index_path, "w") as f:
@@ -117,6 +127,7 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
         print(f"✨ 生成索引文件: {index_path}")
 
     # 7. 保存 Qwen2.5VL 专用组件（确保多模态支持）
+    # 7. Save Qwen2.5VL-specific components (ensure multimodal support)
     print("\nSAVING MULTIMODAL COMPONENTS...")
     multimodal_files = []
     
@@ -135,6 +146,7 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
     print("  ✓ " + ", ".join(multimodal_files) if multimodal_files else "  ✓ No multimodal components found")
 
     # 8. 验证保存结果
+    # 8. Verify the saved output
     print("\n✅ 保存完成！验证文件列表:")
     total_size = 0
     for root, _, files in os.walk(save_dir):
@@ -152,18 +164,22 @@ def save_qwen25vl_from_gpu(model, tokenizer,save_dir="./qwen25vl_gpu_backup2", r
 
 # ======================
 # 你的模型加载代码（无需修改）
+# Your model loading code (no changes needed)
 # ======================
 if __name__ == "__main__":
     # 这是你的原始加载代码（已确认模型在 GPU 7 上）
+    # This is your original loading code (model confirmed on GPU 7)
     model_path = "/mnt/nas-data-1/zhanglingjun.zlj1/modelversion/v3_bev_target_fulldata_resume/checkpoint-19000"
-    
+
     # 注意：虽然路径存在，但权重已被覆盖，我们需要从当前GPU提取
+    # Note: although the path exists, weights were overwritten — extract from current GPU
     print("=" * 60)
     print("Qwen2.5VL GPU 7 模型备份工具 (原始文件已删除)")
     print("=" * 60)
     print(f"⚠️ 注意: 模型路径 {model_path} 的权重已被覆盖，正在从GPU提取...")
     
     # 加载模型（你的原始代码）
+    # Load the model (your original code)
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         model_path,
         torch_dtype="auto",
@@ -178,22 +194,25 @@ if __name__ == "__main__":
     
     # ======================
     # 从 GPU 提取并保存
+    # Extract and save from GPU
     # ======================
     save_dir = save_qwen25vl_from_gpu_bf16(
         model,
-        tokenizer,  # 必须传入 tokenizer
+        tokenizer,  # 必须传入 tokenizer / tokenizer must be passed
         save_dir="./qwen25vl_gpu7_bf16",
         ref_config_path=model_path
     )
     
     # ======================
     # 保存 processor（关键！）
+    # Save the processor (critical!)
     # ======================
     processor.save_pretrained(save_dir)
     print(f"\n✅ Processor 已保存到: {save_dir}")
     
     # ======================
     # 验证保存（确保可加载）
+    # Verify the save (ensure the model can be loaded)
     # ======================
     print("\n🔍 验证: 尝试从本地加载模型...")
     try:
@@ -205,6 +224,7 @@ if __name__ == "__main__":
         print(f"✅ 加载成功！设备: {next(loaded_model.parameters()).device}")
         
         # 检查多模态组件
+        # Check multimodal components
         if hasattr(loaded_model, 'visual_encoder'):
             print("  ✓ 视觉编码器已恢复")
         if hasattr(loaded_model, 'mm_projector'):
