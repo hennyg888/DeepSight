@@ -14,10 +14,27 @@ This document walks you through setting up the environment, preparing data, and 
 | NVIDIA driver | recent | `nvidia-smi` must work |
 | CUDA toolkit | 12.4 / 12.6 / 12.8 | Pick the index URL that matches in §2 |
 | Python | **3.11** | 3.10 also works if you need closed-loop CARLA later |
-| [uv](https://docs.astral.sh/uv/) | latest | Faster than pip; `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| [uv](https://docs.astral.sh/uv/) | latest | Faster than pip — see install command below |
 | GPU memory | ≥ 24 GB per card (≥ 8 GB if QLoRA) | Full FT of Qwen2.5-VL-3B + DINOv3 needs ≥ 48 GB or DeepSpeed Zero-2 |
 | Disk | ≥ 50 GB free | Models + data + checkpoints |
 | Hugging Face account | — | DINOv3 is a **gated** repo — see §5 |
+
+### Installing `uv`
+
+`uv` is the package/environment manager used throughout this guide. One-liner install (works on Linux & macOS):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+This drops the `uv` binary into `~/.local/bin/`. Either restart your shell or run `source ~/.bashrc` so `uv` is on `PATH`. Verify:
+
+```bash
+uv --version
+# expected: uv 0.x.x
+```
+
+If you can't / won't install uv, you can replace every `uv pip` below with plain `pip`. Everything still works; uv just downloads/resolves much faster.
 
 ---
 
