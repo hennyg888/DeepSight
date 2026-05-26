@@ -34,6 +34,7 @@ dataloader_num_workers: 4
 
 ### output
 output_dir: saves/qwen2_5vl-3b/deepsight/ad_bev_v4
+run_name: deepsight-ad_bev_v4   # wandb 控制台显示的 run 名 / Run name shown on wandb dashboard
 logging_steps: 1
 save_steps: 500
 save_total_limit: 3

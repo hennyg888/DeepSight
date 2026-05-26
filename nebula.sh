@@ -10,6 +10,10 @@
 # Tell llamafactory-cli to launch via torchrun for multi-GPU training
 export FORCE_TORCHRUN=1
 
+# wandb 项目名（run 名在 configs/ad_bev_v4.yaml 的 run_name 里设）
+# wandb project name (run name lives in configs/ad_bev_v4.yaml's run_name field)
+export WANDB_PROJECT=DeepSight
+
 # method1 (推荐 / preferred)
 # 注意：YAML 必须作为位置参数，不能写 --config（CLI 通过 sys.argv[1].endswith('.yaml') 判断）
 # NOTE: YAML must be a positional arg, NOT --config (CLI checks sys.argv[1].endswith('.yaml'))
