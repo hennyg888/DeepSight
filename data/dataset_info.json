@@ -1,6 +1,6 @@
 {
   "bench2drive_bev_train": {
-    "file_name": "/mnt/nas-data-1/wuchangjie.wcj/data/ad_ex2/train_bev-full.jsonl",
+    "file_name": "train_bev_mini.jsonl",
     "formatting": "sharegpt",
     "columns": {
       "messages": "messages",

@@ -10,9 +10,23 @@ from shapely.geometry import Polygon
 import copy
 import torch
 from PIL import Image
-from utils.obj_utils import visual_objs
-from utils.vis_utils import visual_road, get_sub_type_color_2, visual_line_with_arrow
-from utils.cls_utils import merge_classes_and_ranges, get_range_point
+# Stub：本 repo 中缺失可视化 / label 工具模块。
+# Stub: visualization / label-utils modules are missing from this repo.
+# RoadCollector 仅被 export，训练路径里实际用的是 ADCollector（workflow.py 选用）。
+# RoadCollector is only exported; the training path actually uses ADCollector (workflow.py picks it).
+# 这里写 stub 让 module 能正常 import；若有代码真调到这些函数，会立刻抛 NotImplementedError 而不是悄悄出错。
+# Stubs let the module import cleanly; if anything actually calls these, NotImplementedError fires loud rather than silently misbehaving.
+def _missing_util(*args, **kwargs):
+    raise NotImplementedError(
+        "RoadCollector visualization/label utils are not bundled in this repo. "
+        "If you hit this, you probably wanted ADCollector instead."
+    )
+visual_objs = _missing_util
+visual_road = _missing_util
+get_sub_type_color_2 = _missing_util
+visual_line_with_arrow = _missing_util
+merge_classes_and_ranges = _missing_util
+get_range_point = _missing_util
 
 
 def draw_arrow(image, start_point, angle, length=15, arrow_color=(0, 255, 0), thickness=2):

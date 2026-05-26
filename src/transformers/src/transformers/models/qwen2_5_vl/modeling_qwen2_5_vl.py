@@ -1379,7 +1379,6 @@ class Qwen2_5_VLForConditionalGeneration(Qwen2_5_VLPreTrainedModel, GenerationMi
         self.model = Qwen2_5_VLModel(config)
         self.lm_head = nn.Linear(config.text_config.hidden_size, config.text_config.vocab_size, bias=False)
         # 增加子模块
-        # Add sub-modules
         dinov3_config = DINOv3ViTConfig.from_json_file(config.dinov3_config)
         self.dinov3 = DINOv3ViTModel._from_config(dinov3_config)
         self.dinov3.requires_grad_(False)

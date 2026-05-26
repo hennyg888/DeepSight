@@ -98,11 +98,14 @@ def fuc_crop_imgs(scene_path):
         for i in range(num_img):
             anno_file = os.path.join(anno_path, f'{i:05d}.json')
             anno_gz = f'{anno_file}.gz'
+            # 直接用 Python gzip 读取 .json.gz，避免依赖 sudo 解压（原代码用 sudo 在非 root 环境会失败）
+            # Read .json.gz directly with Python gzip; original used `sudo gzip -d` which fails for non-root users
             if os.path.exists(anno_gz):
-                if os.path.exists(anno_file):
-                    os.system(f"sudo rm {anno_file}")
-                os.system(f"sudo gzip -d {anno_gz}")
-            anno = json.load(open(anno_file))
+                import gzip
+                with gzip.open(anno_gz, 'rt') as gz_f:
+                    anno = json.load(gz_f)
+            else:
+                anno = json.load(open(anno_file))
             img = cv2.imread(os.path.join(rgb_top_down_folder, f'{i:05d}.jpg'))
             cv2.circle(img, (img_width // 2, img_height // 2), 10, (0, 150, 150), -1)
             assert img is not None
@@ -142,9 +145,9 @@ def visual_for_crop(scene_path, visual_path, k=5):
 
 if __name__ == '__main__':
 
-    # base_folder = '/mnt/nas-data-1/zhanglingjun.zlj1/data/bench2drive-full'
-    # base_folder = '/mnt/nas-data-1/zhanglingjun.zlj1/data/bench2drive-base'
-    base_folder = '/mnt/nas-data-1/zhanglingjun.zlj1/data/bench2drive-val'
+    # 把下面 base_folder 改成你解压好的 Bench2Drive scene 根目录
+    # Change base_folder below to your extracted Bench2Drive scene root
+    base_folder = './bench2drive/Bench2Drive-mini-extracted'
     img_width, img_height = 1600, 900
 
     # 遍历 base_folder 下的每个子文件夹
@@ -152,7 +155,9 @@ if __name__ == '__main__':
     scene_names = os.listdir(base_folder)
     scene_names = [os.path.join(base_folder, name) for name in scene_names if name[0] != '.']
     scene_names = [name for name in scene_names if os.path.isdir(name)]
-    with Pool(processes=64) as pool:
+    # Pool 大小不要超过 scene 数；小数据集时 64 进程纯浪费
+    # Don't oversize Pool beyond scene count; 64 procs are wasteful for small datasets
+    with Pool(processes=min(len(scene_names), 10)) as pool:
         pool.map(fuc_crop_imgs, scene_names)
 
     # for scene_name in tqdm(scene_names):

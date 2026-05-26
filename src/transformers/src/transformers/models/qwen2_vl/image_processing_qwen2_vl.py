@@ -423,7 +423,7 @@ class Qwen2VLImageProcessor(BaseImageProcessor):
             size=size,
             resample=resample,
         )
-        # from pudb import set_trace; set_trace()
+
         data = {}
         if images is not None:
             pixel_values, vision_grid_thws = [], []
@@ -453,11 +453,11 @@ class Qwen2VLImageProcessor(BaseImageProcessor):
 
         # kept for BC only and should be removed after v5.0
         if videos is not None:
-            # logger.warning(
-            #     "`Qwen2VLImageProcessor` works only with image inputs and doesn't process videos anymore. "
-            #     "This is a deprecated behavior and will be removed in v5.0. "
-            #     "Your videos should be forwarded to `Qwen2VLVideoProcessor`. "
-            # )
+            logger.warning(
+                "`Qwen2VLImageProcessor` works only with image inputs and doesn't process videos anymore. "
+                "This is a deprecated behavior and will be removed in v5.0. "
+                "Your videos should be forwarded to `Qwen2VLVideoProcessor`. "
+            )
             videos = make_batched_videos(videos)
             pixel_values_videos, vision_grid_thws_videos = [], []
             for images in videos:

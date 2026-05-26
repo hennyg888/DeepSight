@@ -75,6 +75,14 @@ class BaseModelArguments:
         default=None,
         metadata={"help": "Special tokens to be added into the tokenizer. Use commas to separate multiple tokens."},
     )
+    dinov3_pretrained: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "HF model id or local dir for the pretrained DINOv3 ViT used by DeepSight's Qwen2.5-VL fork."
+            " When set, the loader injects config.dinov3_config (architecture json path) and loads pretrained"
+            " DINOv3 weights into model.dinov3 after construction."
+        },
+    )
     model_revision: str = field(
         default="main",
         metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},

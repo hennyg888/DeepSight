@@ -236,7 +236,6 @@ def make_flat_list_of_images(
         and all(is_valid_list_of_images(images_i) for images_i in images)
     ):
         return [img for img_list in images for img in img_list]
-        # return images
 
     if isinstance(images, (list, tuple)) and is_valid_list_of_images(images):
         if is_pil_image(images[0]) or images[0].ndim == expected_ndims:

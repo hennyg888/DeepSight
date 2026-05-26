@@ -8,25 +8,31 @@ import math
 import re
 
 RESULT_MAP = None
-RESULT_JSONL_PATH = '/home/zhanglingjun.zlj/code/Bench2Drive/totaljsonfile/merged_output.jsonl'  # 替换为实际路径 / replace with the actual path
+# CoT 注释文件路径；留空则跳过 CoT，所有样本走 FLAGE='False' 简单分支
+# Path to CoT annotation file; leave empty to skip CoT — all samples then use the FLAGE='False' simple branch
+RESULT_JSONL_PATH = ''
 
 def load_result_map():
-    """加载result映射字典到全局变量 / Load the result mapping dict into the global variable."""
+    """加载result映射字典到全局变量；当 RESULT_JSONL_PATH 为空或文件不存在时返回空字典，自动跳过 CoT。
+    Load the result mapping dict into the global variable; returns an empty dict (auto-skipping CoT) when RESULT_JSONL_PATH is empty or missing.
+    """
     global RESULT_MAP
     if RESULT_MAP is None:
-        print(f"Loading result map from {RESULT_JSONL_PATH}...")
         RESULT_MAP = {}
-        with open(RESULT_JSONL_PATH, 'r') as f:
-            for line in f:
-                try:
-                    data = json.loads(line.strip())
-                    # 确保id是字符串类型
-                    # Ensure the id field is a string
-                    img_id = str(data['id'])
-                    RESULT_MAP[img_id] = data['result']
-                except Exception as e:
-                    print(f"Error parsing line: {line}, {e}")
-        print(f"Loaded {len(RESULT_MAP)} results into result map.")
+        if RESULT_JSONL_PATH and os.path.exists(RESULT_JSONL_PATH):
+            print(f"Loading result map from {RESULT_JSONL_PATH}...")
+            with open(RESULT_JSONL_PATH, 'r') as f:
+                for line in f:
+                    try:
+                        data = json.loads(line.strip())
+                        # 确保id是字符串类型
+                        # Ensure the id field is a string
+                        RESULT_MAP[str(data['id'])] = data['result']
+                    except Exception as e:
+                        print(f"Error parsing line: {line}, {e}")
+            print(f"Loaded {len(RESULT_MAP)} results into result map.")
+        else:
+            print("No CoT result map — skipping CoT, FLAGE will be 'False' for all samples.")
     return RESULT_MAP
 
 def line_intersection(line1, line2):
@@ -248,7 +254,9 @@ def get_images(i, history_path, suround_view_path, bev_img_folders):
     for index in range(4, 0, -1):
         his_index = i - index * 5
         if his_index < 0:
-            img_file = '/mnt/nas-data-1/zhanglingjun.zlj1/ad_data_process/sft_data_api_explain/hisblack.jpg'
+            # 历史帧不足时使用黑图占位（在数据准备阶段创建）
+            # Placeholder black image when there aren't enough historical frames (created during data prep)
+            img_file = './bench2drive/Bench2Drive-mini-extracted/hisblack.jpg'
         else:
             img_file = os.path.join(history_path, f'{his_index:05d}.jpg')
         assert os.path.exists(img_file), f"{img_file} not exists"
@@ -679,13 +687,9 @@ def create_train_json(scene_path, result_map):
         # except Exception as e:
         #     print(f"Error: {scene_path} {i}: {e}")
         #     continue
-    base_folder = '/mnt/nas-data-1/zhanglingjun.zlj1/data/bench2drive-val'
-    prefix_len = len(base_folder) + 1 
-    relative_scene_names = scene_path[prefix_len:]
-    os.makedirs(relative_scene_names, exist_ok=True)
-    # target_points_json = json.dumps(target_points)
-
-    with open(os.path.join(relative_scene_names, sub_train_json), 'w', encoding='utf-8') as f:
+    # 把每个 scene 的中间 JSONL 直接写到 scene 文件夹里
+    # Write each scene's intermediate JSONL directly inside that scene folder
+    with open(os.path.join(scene_path, sub_train_json), 'w', encoding='utf-8') as f:
         f.write('\n'.join(res))
 
     # with open(os.path.join(relative_scene_names, sub_train_json), 'w',encoding='utf-8') as f:
@@ -697,37 +701,39 @@ def init_worker():
         RESULT_MAP = load_result_map()
 
 if __name__ == '__main__':
-    RESULT_JSONL_PATH = '/home/zhanglingjun.zlj/code/Bench2Drive/totaljsonfile/merged_output.jsonl'  # 必须替换为实际路径 / must replace with the actual path
-    # base_folder = '/mnt/nas-data-1/zhanglingjun.zlj1/data/bench2drive-val'
-    # train_json = '/home/zhanglingjun.zlj/code/Bench2Drive/train_bev-test.jsonl'
-    # sub_train_json = 'train_bev_v3.jsonl'
+    # 留空跳过 CoT；如果你跑过 jsonopenai.py 生成了 CoT 标注，把合并后的 jsonl 路径填这里
+    # Leave empty to skip CoT; if you've run jsonopenai.py to generate CoT annotations, point this to the merged jsonl
+    RESULT_JSONL_PATH = ''
 
-    base_folder = '/mnt/nas-data-1/zhanglingjun.zlj1/data/bench2drive-val'
-    train_json = '/home/zhanglingjun.zlj/code/Bench2Drive/train_bev-test0106.jsonl'
-    sub_train_json = 'train_bev_v3.jsonl'
+    # 把下面三个路径改成你的实际位置
+    # Edit the three paths below to match your setup
+    base_folder = './bench2drive/Bench2Drive-mini-extracted'   # 解压后的 scene 根目录 / extracted scene root
+    train_json  = './data/train_bev_mini.jsonl'                # 最终合并输出 / final merged output
+    sub_train_json = 'train_bev_v3.jsonl'                       # 每个 scene 里的中间文件名 / per-scene intermediate filename
 
-    # base_folder = '/mnt/nas-data-1/zhanglingjun.zlj1/data/bench2drive-val'
-    # train_json = '/home/zhanglingjun.zlj/code/Bench2Drive/train_bev-test2.jsonl'
-    # len_target_json = '/home/zhanglingjun.zlj/code/Bench2Drive/targetlength.jsonl'
-    # sub_train_json = 'train_bev_v3.jsonl'
-    # 遍历 base_folder 下的每个子文件夹
-    # Iterate over each subdirectory under base_folder
     scene_names = os.listdir(base_folder)
     scene_names = [os.path.join(base_folder, name) for name in scene_names if name[0] != '.']
     scene_names = [name for name in scene_names if os.path.isdir(name)]
     with Manager() as manager:
         result_map = manager.dict(load_result_map())
-        with Pool(processes=64, initializer=init_worker) as pool:
+        # 进程数不要超过 scene 数；小数据集 64 进程纯浪费
+        # Don't oversize the pool; 64 processes are wasteful for small datasets
+        with Pool(processes=min(len(scene_names), 10), initializer=init_worker) as pool:
             tasks = [(scene_path, result_map) for scene_path in scene_names]
             pool.starmap(create_train_json, tasks)
-            # pool.map(create_train_json, scene_names)
-    # for scene_path in tqdm(scene_names):
-    #     create_train_json(scene_path)
-    prefix_len = len(base_folder) + 1  # +1 是为了去掉路径分隔符 '/' / +1 to strip the path separator '/'
-    relative_scene_names = [path[prefix_len:] for path in scene_names]
-    
+
+    # 把所有 scene 的中间 JSONL 拼成一个最终训练文件
+    # Concatenate all per-scene JSONLs into one final training file
+    os.makedirs(os.path.dirname(train_json), exist_ok=True)
     with open(train_json, 'w', encoding='utf-8') as f:
-        for scene_path in tqdm(relative_scene_names):
-            f.write(open(os.path.join(scene_path, sub_train_json), encoding='utf-8').read())
-            # f.write(open(sub_train_json), encoding='utf-8').read())
-            f.write('\n')
+        for scene_path in tqdm(scene_names):
+            per_scene = os.path.join(scene_path, sub_train_json)
+            if not os.path.exists(per_scene):
+                print(f"WARN: missing {per_scene}")
+                continue
+            with open(per_scene, encoding='utf-8') as g:
+                content = g.read().strip()
+                if content:
+                    f.write(content)
+                    f.write('\n')
+    print(f"Wrote merged JSONL: {train_json}")

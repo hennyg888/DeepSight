@@ -138,6 +138,18 @@ def load_model(
     r"""Load pretrained model."""
     init_kwargs = _get_init_kwargs(model_args)
     config = load_config(model_args)
+    # DeepSight：在 Qwen2.5-VL __init__ 读取之前，注入 dinov3 架构 json 路径。
+    # DeepSight: inject dinov3 architecture json path before Qwen2.5-VL __init__ reads it.
+    # 模型 __init__ 调用 DINOv3ViTConfig.from_json_file(config.dinov3_config)，
+    # The model __init__ calls DINOv3ViTConfig.from_json_file(config.dinov3_config),
+    # 所以只要磁盘上存在一份真正的 config.json 即可（预训练权重稍后再加载）。
+    # so we just need a real config.json on disk (pretrained weights are loaded afterwards).
+    if model_args.dinov3_pretrained:
+        from huggingface_hub import snapshot_download
+        import os as _os
+        _dv3 = model_args.dinov3_pretrained
+        _dv3_dir = _dv3 if _os.path.isdir(_dv3) else snapshot_download(_dv3)
+        config.dinov3_config = _os.path.join(_dv3_dir, "config.json")
     patch_config(config, tokenizer, model_args, init_kwargs, is_trainable)
     apply_liger_kernel(config, model_args, is_trainable, require_logits=(finetuning_args.stage not in ["pt", "sft"]))
 
@@ -177,6 +189,22 @@ def load_model(
 
         if model_args.mixture_of_depths == "convert":
             model = convert_pretrained_model_to_mod(model, config, model_args)
+
+        # DeepSight：将 DINOv3 ViT 的预训练权重加载到随机初始化的 dinov3 子模块中。
+        # DeepSight: load pretrained DINOv3 ViT weights into the random-init dinov3 submodule.
+        # Qwen2.5-VL fork 在 __init__ 中通过 _from_config 构造 DINOv3（仅架构、随机权重）；
+        # The Qwen2.5-VL fork constructs DINOv3 via _from_config (architecture only, random weights);
+        # 这里把真实预训练权重覆盖上去，使冻结的视觉编码器具备有效特征提取能力。
+        # we overlay the actual pretrained weights here so the frozen vision encoder is useful.
+        if model_args.dinov3_pretrained and hasattr(model, "dinov3"):
+            from transformers import DINOv3ViTModel
+            import torch as _torch
+            _pretrained = DINOv3ViTModel.from_pretrained(model_args.dinov3_pretrained)
+            model.dinov3.load_state_dict(_pretrained.state_dict())
+            model.dinov3.requires_grad_(False)
+            del _pretrained
+            _torch.cuda.empty_cache() if _torch.cuda.is_available() else None
+            logger.info_rank0(f"Loaded pretrained DINOv3 weights from {model_args.dinov3_pretrained}")
 
     if not lazy_load:
         patch_model(model, tokenizer, model_args, is_trainable, add_valuehead)

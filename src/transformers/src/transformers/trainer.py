@@ -1258,7 +1258,6 @@ class Trainer:
         Trainer's init through `optimizers`, or subclass and override this method (or `create_optimizer` and/or
         `create_scheduler`) in a subclass.
         """
-        # from pudb import set_trace; set_trace()
         self.create_optimizer()
         if IS_SAGEMAKER_MP_POST_1_10 and smp.state.cfg.fp16:
             # If smp >= 1.10 and fp16 is enabled, we unwrap the optimizer
@@ -5616,7 +5615,7 @@ class Trainer:
                     # In the DataParallel case, convert the scalar tensor into a 1-dim tensor
                     num_items_in_batch = num_items_in_batch.unsqueeze(0)
                 # Divide by number of devices with the same batch
-                if pc := self.accelerator.parallelism_config:
+                if pc := getattr(self.accelerator, "parallelism_config", None):
                     num_items_in_batch = num_items_in_batch // pc.non_data_parallel_size
 
         return batch_samples, num_items_in_batch
