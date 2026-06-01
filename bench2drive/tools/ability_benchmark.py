@@ -157,8 +157,10 @@ def main(args):
     
     Ability_Res['mean'] = sum(list(Ability_Res.values())) / 5
     Ability_Res['crashed'] = crash_route_list
-    with open(f"/home/zhanglingjun.zlj/code/Bench2Drive/resumejson_final/ability.json", 'w') as file:
+    out_path = os.path.join(os.path.dirname(os.path.abspath(args.result_file)), 'ability.json')
+    with open(out_path, 'w') as file:
         json.dump(Ability_Res, file, indent=4)
+    print('Ability written to', out_path)
         
     Success_Res = {}
     Route_num = 0
@@ -167,7 +169,8 @@ def main(args):
         Success_Res[scenario] = float(statis[0])/float(statis[1])
         Succ_Route_num += statis[0]
         Route_num += statis[1]
-    assert len(crash_route_list) == 220 - float(Route_num)
+    if len(crash_route_list) != 220 - float(Route_num):
+        print(f"[warn] {int(Route_num)} routes evaluated + {len(crash_route_list)} missing != 220; not a full benchmark, Ability denominator may be off")
     print(f"Mean:{Ability_Res['mean']}")
     print(f'Crashed Route num: {len(crash_route_list)}, Crashed Route ID: {crash_route_list}')
     print('Finished!')
