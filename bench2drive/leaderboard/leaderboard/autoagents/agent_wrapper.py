@@ -181,9 +181,12 @@ class AgentWrapper(object):
             attributes['lower_fov'] = str(-30)
             attributes['points_per_second'] = str(600000)
             attributes['atmosphere_attenuation_rate'] = str(0.004)
-            attributes['dropoff_general_rate'] = str(0.45)
-            attributes['dropoff_intensity_limit'] = str(0.8)
-            attributes['dropoff_zero_intensity'] = str(0.4)
+            # No dropoff: the training .laz were collected without point dropoff (~57.7k pts/frame).
+            # The default 0.45 general dropoff randomly discards ~45% of points (~31.8k/frame),
+            # making the inference BEV far sparser than what the model trained on. Set to 0 to match.
+            attributes['dropoff_general_rate'] = str(0.0)
+            attributes['dropoff_intensity_limit'] = str(0.0)
+            attributes['dropoff_zero_intensity'] = str(0.0)
 
             sensor_location = carla.Location(x=sensor_spec['x'], y=sensor_spec['y'],
                                              z=sensor_spec['z'])
