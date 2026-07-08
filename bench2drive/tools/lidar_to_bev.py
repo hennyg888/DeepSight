@@ -27,7 +27,7 @@ except ImportError:
 
 # ── BEV parameters matching bench2drive conventions ───────────────────────────
 IMG_W, IMG_H = 644, 644      # should be multiple of 28 for patch size 14 with 2x2 merge in qwen 2.5 vl
-BEV_RANGE_M  = 35.0           # ±m in each direction
+BEV_RANGE_M  = 30.0           # ±m in each direction
 Z_MIN        = -3.0           # clip height below this (m)
 Z_MAX        =  5.0           # clip height above this (m)
 
@@ -144,6 +144,31 @@ def bev_projection(points: np.ndarray) -> np.ndarray:
         ],
         axis=2,
     )
+
+    # ── 5b. expand each coloured (non-empty) pixel into its 4 neighbours ──────
+    # overlapping contributions (a pixel reached by more than one coloured
+    # source) are averaged rather than overwritten.
+    src_mask = ~empty.reshape(IMG_H, IMG_W)
+    img_f    = img.astype(np.float32)
+    sum_acc   = np.zeros_like(img_f)
+    count_acc = np.zeros((IMG_H, IMG_W), dtype=np.int32)
+
+    for dr, dc in ((0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)):
+        src_r0, src_r1 = max(0, -dr), IMG_H - max(0, dr)
+        dst_r0, dst_r1 = max(0, dr), IMG_H - max(0, -dr)
+        src_c0, src_c1 = max(0, -dc), IMG_W - max(0, dc)
+        dst_c0, dst_c1 = max(0, dc), IMG_W - max(0, -dc)
+
+        shifted_mask = src_mask[src_r0:src_r1, src_c0:src_c1]
+        shifted_img  = img_f[src_r0:src_r1, src_c0:src_c1, :]
+
+        sum_acc[dst_r0:dst_r1, dst_c0:dst_c1, :] += np.where(shifted_mask[..., None], shifted_img, 0.0)
+        count_acc[dst_r0:dst_r1, dst_c0:dst_c1]  += shifted_mask
+
+    has_color = count_acc > 0
+    img = np.zeros_like(img_f)
+    img[has_color] = sum_acc[has_color] / count_acc[has_color, None]
+    img = np.round(img).astype(np.uint8)
 
     # ── 6. draw yellow ego dot at the ego-vehicle position ────────
     pil = Image.fromarray(img, mode="RGB")
