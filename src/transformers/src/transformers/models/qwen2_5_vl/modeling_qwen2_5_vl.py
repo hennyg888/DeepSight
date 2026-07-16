@@ -1524,7 +1524,31 @@ class Qwen2_5_VLForConditionalGeneration(Qwen2_5_VLPreTrainedModel, GenerationMi
                 b, t, c, h, w = pixel_values_bevs.shape
                 target_embeds = self.dinov3(pixel_values_bevs.reshape(t*b, c, h, w))
                 target_embeds = target_embeds.last_hidden_state  # (b*t, L, D)
-                target_embeds = target_embeds.reshape(b, t * target_embeds.shape[1], -1) # (b, t*L, D)
+                target_embeds = target_embeds.reshape(b, t, target_embeds.shape[1], -1)  # (b, t, L, D)
+                # Frame 0 target stays the raw features; frames 1..t-1 targets are that frame's features minus frame 0's
+                target_embeds = torch.cat(
+                    [target_embeds[:, :1], target_embeds[:, 1:] - target_embeds[:, :1]], dim=1
+                )
+                # Pixel-diff gate (see residual_exp/dinov3_feature_diff.py): for future frames only,
+                # zero a patch's residual target when the L2 norm of its raw [0,1] pixel difference
+                # vs frame 0 is below 1. pixel_values_bevs is ImageNet-normalized, so un-normalize first.
+                imagenet_mean = pixel_values_bevs.new_tensor((0.485, 0.456, 0.406)).view(1, 1, 3, 1, 1)
+                imagenet_std = pixel_values_bevs.new_tensor((0.229, 0.224, 0.225)).view(1, 1, 3, 1, 1)
+                raw_pixels = pixel_values_bevs * imagenet_std + imagenet_mean  # (b, t, c, h, w) in [0, 1]
+                pixel_diff = raw_pixels[:, 1:] - raw_pixels[:, :1]  # (b, t-1, c, h, w)
+                p = self.dinov3.config.patch_size
+                hp, wp = h // p, w // p
+                pixel_diff_mag = (
+                    pixel_diff.reshape(b, t - 1, c, hp, p, wp, p)
+                    .permute(0, 1, 3, 5, 2, 4, 6)
+                    .reshape(b, t - 1, hp * wp, c * p * p)
+                    .norm(dim=-1)
+                )  # (b, t-1, hp*wp)
+                gate = (pixel_diff_mag >= 1.0).unsqueeze(-1).to(target_embeds.dtype)
+                # Patch tokens start after the CLS + register tokens; CLS keeps its (global) residual
+                num_prefix_tokens = 1 + self.dinov3.config.num_register_tokens
+                target_embeds[:, 1:, num_prefix_tokens:, :] = target_embeds[:, 1:, num_prefix_tokens:, :] * gate
+                target_embeds = target_embeds.reshape(b, t * target_embeds.shape[2], -1) # (b, t*L, D)
                 target_embeds = target_embeds[bevs_masks] # (b*t*(L-4), D)
 
         hidden_states = outputs[0]
