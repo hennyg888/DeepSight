@@ -1,7 +1,7 @@
 #!/bin/bash
 # Must set CARLA_ROOT
 # export CARLA_ROOT=/mnt/nas-data-1/zhanglingjun.zlj1/carla
-export CARLA_ROOT=/mnt/nas-data-1/wuchangjie.wcj/tools/carla
+export CARLA_ROOT=/home/hhguo/Carla
 export CARLA_SERVER=${CARLA_ROOT}/CarlaUE4.sh
 export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI
 export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla
