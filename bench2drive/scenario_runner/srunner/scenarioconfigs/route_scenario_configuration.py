@@ -50,3 +50,5 @@ class RouteScenarioConfiguration(ScenarioConfiguration):
         super(RouteScenarioConfiguration, self).__init__()
         self.keypoints = None
         self.scenario_configs = []
+        self.street_lights = True
+        self.background_traffic = True

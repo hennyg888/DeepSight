@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='utf-8'?>
+<routes><route id="17655" road_id="820" town="Town12" street_lights="off" background_traffic="off">
+         <waypoints>
+            <position x="-418.6" y="6489.9" z="357.4" />
+            <position x="-423.6" y="6489.9" z="357.5" />
+            <position x="-428.6" y="6489.9" z="357.5" />
+            <position x="-433.6" y="6489.8" z="357.5" />
+            <position x="-438.6" y="6489.8" z="357.6" />
+            <position x="-443.6" y="6489.8" z="357.6" />
+            <position x="-448.6" y="6489.7" z="357.6" />
+            <position x="-453.6" y="6489.7" z="357.6" />
+            <position x="-458.6" y="6489.6" z="357.7" />
+            <position x="-463.6" y="6489.6" z="357.7" />
+            <position x="-468.6" y="6489.5" z="357.7" />
+            <position x="-473.6" y="6489.5" z="357.8" />
+            <position x="-478.6" y="6489.5" z="357.8" />
+            <position x="-483.6" y="6489.4" z="357.8" />
+            <position x="-488.6" y="6489.4" z="357.9" />
+            <position x="-493.6" y="6489.3" z="357.9" />
+            <position x="-498.6" y="6489.3" z="357.9" />
+            <position x="-503.6" y="6489.3" z="357.9" />
+            <position x="-508.6" y="6489.2" z="358.0" />
+            <position x="-513.6" y="6489.2" z="358.0" />
+            <position x="-518.6" y="6489.2" z="358.0" />
+            <position x="-523.6" y="6489.1" z="358.1" />
+            <position x="-528.6" y="6489.1" z="358.1" />
+            <position x="-533.6" y="6489.0" z="358.1" />
+            <position x="-538.6" y="6489.0" z="358.2" />
+         </waypoints>
+         <scenarios>
+            <scenario name="ParkedObstacleNoLightsWithGlare_1" type="ParkedObstacleNoLightsWithGlare">
+               <trigger_point x="-418.6" y="6489.9" yaw="-179.6" z="357.4" />
+               <distance value="30.0" />
+               <offset value="0.0" />
+               <color value="0,0,0" />
+               <model value="vehicle.tesla.model3" />
+               <glare_side value="left" />
+               <glare_distance value="25.0" />
+               <glare_aim_distance value="10.0" />
+               <glare_yaw_offset value="0.0" />
+               <glare_model value="vehicle.ford.ambulance" />
+               <speed value="90.0" />
+            </scenario>
+         </scenarios>
+         <weathers>
+            <weather cloudiness="100.0" fog_density="35.0" fog_distance="6.0" fog_falloff="0.0" precipitation="0.0" precipitation_deposits="100.0" route_percentage="0" scattering_intensity="15.0" mie_scattering_scale="2.0" sun_altitude_angle="-90.0" sun_azimuth_angle="220.0" wetness="100.0" wind_intensity="0.0" />
+            <weather cloudiness="100.0" fog_density="35.0" fog_distance="6.0" fog_falloff="0.0" precipitation="0.0" precipitation_deposits="100.0" route_percentage="100" scattering_intensity="15.0" mie_scattering_scale="2.0" sun_altitude_angle="-90.0" sun_azimuth_angle="220.0" wetness="100.0" wind_intensity="0.0" />
+         </weathers>
+      </route>
+      </routes>

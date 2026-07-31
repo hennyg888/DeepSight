@@ -27,7 +27,8 @@ except ImportError:
 
 # ── BEV parameters matching bench2drive conventions ───────────────────────────
 IMG_W, IMG_H = 644, 644      # should be multiple of 28 for patch size 14 with 2x2 merge in qwen 2.5 vl
-BEV_RANGE_M  = 30.0           # ±m in each direction
+# BEV_RANGE_M_ENV: override per-checkpoint lineage (35=base_lidar/sq/afz, 30=lidar30)
+BEV_RANGE_M  = float(os.environ.get('BEV_RANGE_M', '30'))           # ±m in each direction
 Z_MIN        = -3.0           # clip height below this (m)
 Z_MAX        =  5.0           # clip height above this (m)
 

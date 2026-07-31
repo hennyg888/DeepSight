@@ -204,14 +204,23 @@ class LeaderboardEvaluator(object):
         Prepares the simulation by getting the client, and setting up the world and traffic manager settings
         """
         self.carla_path = os.environ["CARLA_ROOT"]
-        args.port = find_free_port(args.port)
-        cmd1 = f"{os.path.join(self.carla_path, 'CarlaUE4.sh')} -RenderOffScreen -nosound -carla-rpc-port={args.port} -graphicsadapter={int(args.gpu_rank)}"
-        # cmd1 = f"{os.path.join(self.carla_path, 'CarlaUE4.sh')} -RenderOffScreen -nosound -carla-rpc-port={args.port}"
-        self.server = subprocess.Popen(cmd1, shell=True, preexec_fn=os.setsid)
-        print(cmd1, self.server.returncode, flush=True)
-        atexit.register(os.killpg, self.server.pid, signal.SIGKILL)
-        time.sleep(30)
-            
+        # When set, attach to an already running CARLA server instead of spawning one.
+        # The server then outlives the run and is never killed by this process.
+        self.external_carla = os.environ.get("LB_EXTERNAL_CARLA", "0").lower() in ("1", "true", "yes")
+        self.server = None
+        if self.external_carla:
+            # Do NOT call find_free_port here: the external server already holds args.port,
+            # so probing for a free one would hand back a port with nothing listening on it.
+            print(f"Using external CARLA server at {args.host}:{args.port}", flush=True)
+        else:
+            args.port = find_free_port(args.port)
+            cmd1 = f"{os.path.join(self.carla_path, 'CarlaUE4.sh')} -RenderOffScreen -nosound -carla-rpc-port={args.port} -graphicsadapter={int(args.gpu_rank)}"
+            # cmd1 = f"{os.path.join(self.carla_path, 'CarlaUE4.sh')} -RenderOffScreen -nosound -carla-rpc-port={args.port}"
+            self.server = subprocess.Popen(cmd1, shell=True, preexec_fn=os.setsid)
+            print(cmd1, self.server.returncode, flush=True)
+            atexit.register(os.killpg, self.server.pid, signal.SIGKILL)
+            time.sleep(30)
+
         attempts = 0
         num_max_restarts = 20
         while attempts < num_max_restarts:
@@ -509,7 +518,9 @@ class LeaderboardEvaluator(object):
             self.statistics_manager.compute_global_statistics()
             self.statistics_manager.validate_and_write_statistics(self.sensors_initialized, crashed)
         
-        if crashed:
+        # An external server is managed by the user (start_carla.sh / stop_carla.sh),
+        # so leave it running even on a crash instead of killing it by graphicsadapter.
+        if crashed and not self.external_carla:
             cmd2 = "ps -ef | grep '-graphicsadapter="+ str(args.gpu_rank) + "' | grep -v grep | awk '{print $2}' | xargs -r kill -9"
             server = subprocess.Popen(cmd2, shell=True, preexec_fn=os.setsid)
             atexit.register(os.killpg, server.pid, signal.SIGKILL)

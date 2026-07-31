@@ -113,6 +113,14 @@ class RouteParser(object):
             route_config.town = route.attrib['town']
             route_config.name = "RouteScenario_{}".format(route_id)
             route_config.weather = RouteParser.parse_weather(route)
+            # Optional per-route switch: street_lights="off" keeps the map lights unlit,
+            # so a night route stays fully dark instead of being lit by the lamp posts.
+            route_config.street_lights = \
+                route.attrib.get('street_lights', 'on').lower() not in ('off', 'false', '0')
+            # Optional per-route switch: background_traffic="off" leaves the road empty,
+            # so only the ego and the scenario actors are present.
+            route_config.background_traffic = \
+                route.attrib.get('background_traffic', 'on').lower() not in ('off', 'false', '0')
 
             # The list of carla.Location that serve as keypoints on this route
             positions = []

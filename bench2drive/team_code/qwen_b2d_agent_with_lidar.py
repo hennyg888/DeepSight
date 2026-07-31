@@ -12,12 +12,13 @@ import pathlib
 import numpy as np
 from PIL import Image
 import sys
-sys.path.insert(0, '/home/s56cai/DeepSight/bench2drive/tools')
-from lidar_to_bev import bev_projection
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tools'))
+from lidar_to_bev import bev_projection, BEV_RANGE_M
 from scipy.optimize import fsolve
 from scipy.interpolate import splprep, splev
 from team_code.pid_controller import PIDController
 from team_code.planner import RoutePlanner
+from team_code.b2d_anno import write_anno
 from leaderboard.autoagents import autonomous_agent
 
 from qwen_vl_utils import process_vision_info
@@ -29,6 +30,18 @@ from transformers import AutoProcessor, AutoTokenizer, Qwen2_5_VLForConditionalG
 SAVE_PATH = os.environ.get('SAVE_PATH', None)
 IS_BENCH2DRIVE = os.environ.get('IS_BENCH2DRIVE', None)
 # IS_BENCH2DRIVE = True
+
+# Temporary debug switch: feed the model an all-black image in place of every
+# camera view (history + current surround-view) so inference runs on LiDAR only.
+# Camera frames are still saved to disk normally for eval recording; only what
+# gets sent into the model is swapped out.
+BLACK_CAMERA_INPUT = os.environ.get('BLACK_CAMERA_INPUT', '0') not in ('0', '', 'false', 'False')
+
+# Write Bench2Drive-format anno/*.json.gz alongside the camera frames, so a run can be
+# turned into DeepSight training samples (see team_code/b2d_anno.py). Off by default:
+# it costs a full actor sweep per frame and is useless for plain scoring runs.
+SAVE_ANNO = os.environ.get('SAVE_ANNO', '0') not in ('0', '', 'false', 'False')
+BLACK_IMAGE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'assets', 'hisblack.jpg')
 
 
 def calculate_cube_vertices(center, extent):
@@ -89,7 +102,7 @@ def format_trajs(trajs):
 
 
 LIDAR_SENTENCE = (
-    "This is the current-frame LiDAR bird's-eye view (top-down, 35 m around the ego): "
+    f"This is the current-frame LiDAR bird's-eye view (top-down, {int(BEV_RANGE_M)} m around the ego): "
     "the center yellow dot is the ego vehicle; concentric rings are LiDAR ground returns; "
     "bright red marks tall objects (vehicles, walls, buildings, obstacles, trees); "
     "black is empty or occluded space. LiDAR BEV:<image>."
@@ -440,7 +453,7 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
                     his_traj = tick_data['bounding_boxes']['location']
                 else:
                     his_traj = copy.deepcopy(self.his_trajs[0])
-                his_images.append('/home/s56cai/DeepSight/bench2drive/assets/hisblack.jpg')
+                his_images.append(BLACK_IMAGE_PATH)
             else:
                 his_traj = self.his_trajs[-his_index]
                 his_images.append(self.his_images[-his_index])
@@ -522,6 +535,10 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
         img_keys = ['CAM_FRONT','CAM_FRONT_LEFT','CAM_FRONT_RIGHT','CAM_BACK','CAM_BACK_LEFT','CAM_BACK_RIGHT']
         images = [str(self.save_path / 'camera' / f'{key}' / (f'{self.step:05}.jpg')) for key in img_keys]
         images = his_images + images
+        if BLACK_CAMERA_INPUT:
+            # Real camera frames are already saved to disk (save_cur_frame/save) for
+            # eval recording; only the paths handed to the model are swapped here.
+            images = [BLACK_IMAGE_PATH] * len(images)
         lidar_bev_path = self.make_lidar_bev(tick_data['lidar'])
         images = images + [lidar_bev_path]
 
@@ -828,12 +845,12 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
         self.bevpixel = bevpixel
 
         if SAVE_PATH is not None and self.step % 1 == 0:
-            self.save(tick_data)
+            self.save(tick_data, control)
         self.prev_control = control
 
         return control
 
-    def save(self, tick_data):
+    def save(self, tick_data, control=None):
         frame = self.step
         self.his_trajs.append(tick_data['bounding_boxes']['location'])
         cam_front_img = str(self.save_path / 'camera' / 'CAM_FRONT' / (f'{frame:05}.jpg'))
@@ -855,6 +872,14 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
         imgs_with_box['bev'] = self.draw_traj_bev(self.bevpixel, tick_data['imgs']['CAM_BEV'])
         for cam, img in imgs_with_box.items():
             Image.fromarray(img).save(self.save_path / str.lower(cam).replace('cam','rgb') / ('%04d.png' % frame))
+        # Training-data annotations. Never let a bad frame kill the run -- a hole in
+        # anno/ just costs that one sample downstream.
+        if SAVE_ANNO and control is not None:
+            try:
+                write_anno(self.save_path, frame, self.manager.ego_vehicles[0],
+                           tick_data, control, self.sensors())
+            except Exception as e:
+                print(f'[b2d_anno] frame {frame}: {e}')
 
     def save_cur_frame(self, tick_data):
         images = tick_data['imgs']

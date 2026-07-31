@@ -27,7 +27,8 @@ from srunner.scenarioconfigs.scenario_configuration import ActorConfigurationDat
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import ScenarioTriggerer, Idle
-from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import WaitForBlackboardVariable
+from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (ROUTE_END_REQUESTED_VAR,
+                                                                               WaitForBlackboardVariable)
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import (CollisionTest,
                                                                      InRouteTest,
                                                                      RouteCompletionTest,
@@ -204,6 +205,11 @@ class RouteScenario(BasicScenario):
 
     def spawn_parked_vehicles(self, ego_vehicle, max_scenario_distance=10):
         """Spawn parked vehicles."""
+        # The roadside parked cars are neither ego nor scenario actors, so an unpopulated
+        # route leaves them out too.
+        if not getattr(self.config, 'background_traffic', True):
+            return
+
         def is_close(slot_location, ego_location):
             return slot_location.distance(ego_location) < self.PARKED_VEHICLES_INIT_THRESHOLD
         def is_free(slot_location):
@@ -401,7 +407,8 @@ class RouteScenario(BasicScenario):
         self.scenario_triggerer = scenario_triggerer
 
         # Add the Background Activity
-        behavior.add_child(BackgroundBehavior(self.ego_vehicles[0], self.route, name="BackgroundActivity"))
+        if getattr(self.config, 'background_traffic', True):
+            behavior.add_child(BackgroundBehavior(self.ego_vehicles[0], self.route, name="BackgroundActivity"))
 
         behavior.add_children(scenario_behaviors)
         return behavior
@@ -418,6 +425,15 @@ class RouteScenario(BasicScenario):
 
         # End condition
         criteria.add_child(RouteCompletionTest(self.ego_vehicles[0], route=self.route))
+
+        # Second end condition: a scenario asking for the route to stop before its waypoints
+        # run out. Used by routes whose point is a single encounter -- once it is resolved
+        # there is nothing left to record, and without this they would idle until the
+        # AgentBlockedTest below fires 60 s later. This node is not a Criterion, so
+        # get_criteria() filters it out of the scoring, same as the per-scenario
+        # WaitForBlackboardVariable gates added in _create_criterion_tree.
+        criteria.add_child(WaitForBlackboardVariable(
+            ROUTE_END_REQUESTED_VAR, True, var_init_value=False, name="ScenarioRequestedRouteEnd"))
 
         # 'Normal' criteria
         criteria.add_child(OutsideRouteLanesTest(self.ego_vehicles[0], route=self.route))
@@ -447,7 +463,8 @@ class RouteScenario(BasicScenario):
         """
         Create the street lights behavior
         """
-        return RouteLightsBehavior(self.ego_vehicles[0], 100)
+        return RouteLightsBehavior(self.ego_vehicles[0], 100,
+                                   street_lights=getattr(self.config, 'street_lights', True))
 
     def _create_timeout_behavior(self):
         """
@@ -461,6 +478,14 @@ class RouteScenario(BasicScenario):
         """
         # Set the appropriate weather conditions
         world.set_weather(self.config.weather[0][1])
+
+        # An unlit route has to be dark from the very first frame. The map lights are
+        # already on when the world is loaded at night, and RouteLightsBehavior only
+        # gets to them on its first tick, which is several recorded frames in.
+        if not getattr(self.config, 'street_lights', True):
+            light_manager = world.get_lightmanager()
+            light_manager.set_day_night_cycle(False)
+            light_manager.turn_off(light_manager.get_all_lights())
 
     def _create_criterion_tree(self, scenario, criteria):
         """

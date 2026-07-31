@@ -1277,6 +1277,79 @@ class WaitEndIntersection(AtomicCondition):
         return new_status
 
 
+# Blackboard flag a scenario can raise to end the whole route, not just itself.
+#
+# A route scenario cannot normally stop the route: leaderboard wraps every scenario
+# behavior in a Sequence terminated by WaitForever ("scenario can't stop the route",
+# basic_scenario.py), and the Route Behavior parallel is SUCCESS_ON_ALL over a
+# ScenarioTriggerer that returns RUNNING forever. The route ends through the *criteria*
+# node instead, which is SUCCESS_ON_ONE -- so a scenario raises this flag and
+# RouteScenario._create_test_criteria watches it with a WaitForBlackboardVariable,
+# ending the route exactly the way RouteCompletionTest does at 100%.
+#
+# Set by: srunner.scenarios.route_obstacles.ParkedObstacle (end_on_encounter)
+# Read by: leaderboard.scenarios.route_scenario.RouteScenario._create_test_criteria
+ROUTE_END_REQUESTED_VAR = "ROUTE_END_REQUESTED"
+
+
+class WaitForCollision(AtomicCondition):
+
+    """
+    Atomic condition that terminates with SUCCESS once 'actor' collides with something.
+
+    CollisionTest already detects collisions, but as a criterion it only scores them -- a
+    scenario that wants to *react* to one (typically by ending) needs it as a trigger.
+
+    Important parameters:
+    - actor: CARLA actor the collision sensor is attached to
+    - other_actor: only collisions with this actor count. None registers any collision.
+    - name: Name of the condition
+    """
+
+    def __init__(self, actor, other_actor=None, name="WaitForCollision"):
+        super(WaitForCollision, self).__init__(name)
+        self.logger.debug("%s.__init__()" % (self.__class__.__name__))
+        self._actor = actor
+        self._other_actor = other_actor
+        self._collision_sensor = None
+        self._collided = False
+
+    def initialise(self):
+        """
+        Spawn the collision sensor. Guarded because a condition can be re-initialised if
+        its parent composite restarts it, and the previous sensor would leak.
+        """
+        if self._collision_sensor is None:
+            world = CarlaDataProvider.get_world()
+            blueprint = world.get_blueprint_library().find('sensor.other.collision')
+            self._collision_sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=self._actor)
+            self._collision_sensor.listen(lambda event: self._on_collision(event))
+        super(WaitForCollision, self).initialise()
+
+    def _on_collision(self, event):
+        if self._other_actor is None or event.other_actor.id == self._other_actor.id:
+            self._collided = True
+
+    def update(self):
+        new_status = py_trees.common.Status.RUNNING
+        if self._collided:
+            new_status = py_trees.common.Status.SUCCESS
+
+        self.logger.debug("%s.update()[%s->%s]" % (self.__class__.__name__, self.status, new_status))
+
+        return new_status
+
+    def terminate(self, new_status):
+        """
+        Destroy the sensor. Without this it outlives the condition and keeps firing.
+        """
+        if self._collision_sensor is not None:
+            self._collision_sensor.stop()
+            self._collision_sensor.destroy()
+            self._collision_sensor = None
+        super(WaitForCollision, self).terminate(new_status)
+
+
 class WaitForBlackboardVariable(AtomicCondition):
 
     """

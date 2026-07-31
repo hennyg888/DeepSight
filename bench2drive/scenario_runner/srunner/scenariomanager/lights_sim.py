@@ -33,7 +33,7 @@ class RouteLightsBehavior(py_trees.behaviour.Behaviour):
     # In cases where more than one weather conditition is active, decrease the thresholds
     COMBINED_THRESHOLD = 10
 
-    def __init__(self, ego_vehicle, radius=50, radius_increase=15, name="LightsBehavior"):
+    def __init__(self, ego_vehicle, radius=50, radius_increase=15, street_lights=True, name="LightsBehavior"):
         """
         Setup parameters
         """
@@ -41,6 +41,7 @@ class RouteLightsBehavior(py_trees.behaviour.Behaviour):
         self._ego_vehicle = ego_vehicle
         self._radius = radius
         self._radius_increase = radius_increase
+        self._street_lights = street_lights
         self._world = CarlaDataProvider.get_world()
         self._light_manager = self._world.get_lightmanager()
         self._light_manager.set_day_night_cycle(False)
@@ -94,20 +95,26 @@ class RouteLightsBehavior(py_trees.behaviour.Behaviour):
         radius = max(self._radius, self._radius_increase * ego_speed)
 
         # Street lights
-        on_lights = []
-        off_lights = []
-
         all_lights = self._light_manager.get_all_lights()
-        for light in all_lights:
-            if light.location.distance(location) > radius:
-                if light.is_on:
-                    off_lights.append(light)
-            else:
-                if not light.is_on:
-                    on_lights.append(light)
 
-        self._light_manager.turn_on(on_lights)
-        self._light_manager.turn_off(off_lights)
+        if self._street_lights:
+            on_lights = []
+            off_lights = []
+
+            for light in all_lights:
+                if light.location.distance(location) > radius:
+                    if light.is_on:
+                        off_lights.append(light)
+                else:
+                    if not light.is_on:
+                        on_lights.append(light)
+
+            self._light_manager.turn_on(on_lights)
+            self._light_manager.turn_off(off_lights)
+        else:
+            # The route asked for an unlit scene, so keep every map light off. Vehicle
+            # lights below are untouched, they are the only illumination left at night.
+            self._light_manager.turn_off([l for l in all_lights if l.is_on])
 
         # Vehicles
         all_vehicles = CarlaDataProvider.get_all_actors().filter('*vehicle.*')

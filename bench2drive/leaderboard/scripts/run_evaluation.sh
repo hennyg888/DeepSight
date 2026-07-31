@@ -13,6 +13,10 @@ export SCENARIO_RUNNER_ROOT=scenario_runner
 
 export LEADERBOARD_ROOT=leaderboard
 export CHALLENGE_TRACK_CODENAME=SENSORS
+# Set LB_EXTERNAL_CARLA=1 to attach to a server started by start_carla.sh instead of
+# having leaderboard_evaluator.py spawn (and kill) its own. Defaults to the old
+# self-spawning behavior so every other run_evaluation_*.sh keeps working unchanged.
+export LB_EXTERNAL_CARLA=${LB_EXTERNAL_CARLA:-0}
 export PORT=$1
 export TM_PORT=$2
 export DEBUG_CHALLENGE=0

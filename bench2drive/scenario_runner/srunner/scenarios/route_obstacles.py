@@ -12,6 +12,8 @@ priority, e.g. by running a red traffic light.
 
 from __future__ import print_function
 
+import math
+
 import py_trees
 import carla
 
@@ -24,9 +26,12 @@ from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorDestr
                                                                       HandBrakeVehicle,
                                                                       OppositeActorFlow)
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest, ScenarioTimeoutTest
-from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (DriveDistance,
+from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (ROUTE_END_REQUESTED_VAR,
+                                                                               DriveDistance,
                                                                                InTriggerDistanceToLocation,
                                                                                InTriggerDistanceToVehicle,
+                                                                               StandStill,
+                                                                               WaitForCollision,
                                                                                WaitUntilInFront,
                                                                                WaitUntilInFrontPosition)
 from srunner.scenarios.basic_scenario import BasicScenario
@@ -38,6 +43,13 @@ def get_value_parameter(config, name, p_type, default):
         return p_type(config.other_parameters[name]['value'])
     else:
         return default
+
+def get_bool_parameter(config, name, default):
+    """Route XML has no native bool, so accept the usual spellings of one"""
+    if name not in config.other_parameters:
+        return default
+    return str(config.other_parameters[name]['value']).strip().lower() in ('1', 'true', 'yes', 'on')
+
 
 def get_interval_parameter(config, name, p_type, default):
     if name in config.other_parameters:
@@ -312,6 +324,16 @@ class ParkedObstacle(BasicScenario):
         self._max_speed = get_value_parameter(config, 'speed', float, 60)
         self._scenario_timeout = 240
 
+        # Opt-in: end the scenario once the ego has *resolved* the obstacle rather than
+        # once it has driven past one. The stock end condition (WaitUntilInFrontPosition,
+        # below) only fires after the ego has overtaken, so a route whose whole point is
+        # that the ego should stop -- and never merge out -- otherwise runs until the
+        # 240 s scenario timeout no matter what the ego does. Off by default so the 220
+        # standard routes, where overtaking *is* the expected behaviour, are unaffected.
+        self._end_on_encounter = get_bool_parameter(config, 'end_on_encounter', False)
+        self._stop_distance = get_value_parameter(config, 'stop_distance', float, 15.0)
+        self._stop_duration = get_value_parameter(config, 'stop_duration', float, 2.0)
+
         super().__init__(
             "ParkedObstacle", ego_vehicles, config, world, randomize, debug_mode, criteria_enable=criteria_enable)
 
@@ -388,6 +410,9 @@ class ParkedObstacle(BasicScenario):
         parked_actor.set_light_state(carla.VehicleLightState(lights))
         parked_actor.apply_control(carla.VehicleControl(hand_brake=True))
         self.other_actors.append(parked_actor)
+        # Kept by name: other_actors[0] is the side prop, and subclasses append further
+        # actors (the glare vehicle), so positional indexing is not stable.
+        self._parked_actor = parked_actor
 
         self._end_wp = self._move_waypoint_forward(self._vehicle_wp, self._end_distance)
 
@@ -403,6 +428,8 @@ class ParkedObstacle(BasicScenario):
         end_condition = py_trees.composites.Parallel(policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
         end_condition.add_child(ScenarioTimeout(self._scenario_timeout, self.config.name))
         end_condition.add_child(WaitUntilInFrontPosition(self.ego_vehicles[0], self._end_wp.transform, False))
+        if self._end_on_encounter:
+            end_condition.add_child(self._create_encounter_end_condition())
 
         behavior = py_trees.composites.Sequence()
         behavior.add_child(InTriggerDistanceToLocation(
@@ -415,12 +442,51 @@ class ParkedObstacle(BasicScenario):
         end_condition.add_child(behavior)
         root.add_child(end_condition)
 
+        if self._end_on_encounter:
+            # Raised before the ActorDestroy children below, so the last recorded frames
+            # still show the parked car rather than the empty road it leaves behind.
+            root.add_child(py_trees.blackboard.SetBlackboardVariable(
+                "Request route end: {}".format(self.config.name), ROUTE_END_REQUESTED_VAR, True))
+
         if self.route_mode:
             root.add_child(SetMaxSpeed(0))
         for actor in self.other_actors:
             root.add_child(ActorDestroy(actor))
 
         return root
+
+    def _create_encounter_end_condition(self):
+        """
+        SUCCESS once the ego has resolved the obstacle, either way it can go: it came to a
+        stop in front of the parked car, or it drove into it.
+
+        Both outcomes end the route -- which of the two happened is already recorded by
+        the route's CollisionTest, so this only has to decide *when* to stop, not judge.
+
+        The stop branch is a Sequence rather than a Parallel: 'closed to within
+        stop_distance, and then stood still for stop_duration'. It deliberately does not
+        re-check the distance once satisfied, so an ego that crawls the last few metres
+        still counts as having stopped. That is safe here only because these routes assume
+        the ego never merges out and leaves; a scenario where it might should gate the
+        StandStill on distance as well.
+        """
+        resolved = py_trees.composites.Parallel(
+            name="ObstacleEncounterResolved", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+
+        stopped = py_trees.composites.Sequence(name="EgoStoppedInFrontOfObstacle")
+        # freespace: bumper-to-bumper rather than centre-to-centre, so stop_distance means
+        # the gap you would actually see in the camera frame.
+        stopped.add_child(InTriggerDistanceToVehicle(
+            self._parked_actor, self.ego_vehicles[0], self._stop_distance, freespace=True,
+            name="EgoReachedObstacle"))
+        stopped.add_child(StandStill(
+            self.ego_vehicles[0], duration=self._stop_duration, name="EgoStandStill"))
+        resolved.add_child(stopped)
+
+        resolved.add_child(WaitForCollision(
+            self.ego_vehicles[0], self._parked_actor, name="EgoHitObstacle"))
+
+        return resolved
 
     def _create_test_criteria(self):
         """
@@ -485,6 +551,155 @@ class ParkedObstacleTwoWays(ParkedObstacle):
             root.add_child(ActorDestroy(actor))
 
         return root
+
+
+class ParkedObstacleNoLights(ParkedObstacle):
+    """
+    Variation of the ParkedObstacle scenario where the parked vehicle sits in the middle of
+    the ego's lane with every light off (no hazards, no position/head lights, no brake lights)
+    and without the roadside warning prop, i.e. an unlit, unsignalled obstacle.
+    """
+
+    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+                 timeout=180):
+        # Read before the parent's __init__, which triggers _initialize_actors
+        self._lane_offset = get_value_parameter(config, 'offset', float, 0.0)
+        self._color = get_value_parameter(config, 'color', str, '0,0,0')
+        self._model = get_value_parameter(config, 'model', str, 'vehicle.tesla.model3')
+        super().__init__(world, ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
+
+    def _spawn_side_prop(self, wp):
+        """No roadside warning sign for this variation"""
+        pass
+
+    def _spawn_obstacle(self, wp, blueprint):
+        """
+        Same as the parent, but pins the blueprint to a single model and forces its color,
+        instead of drawing a random model/color pair out of the blueprint library. The
+        'blueprint' argument the parent passes in ('vehicle.*') is deliberately ignored.
+        """
+        displacement = self._offset * wp.lane_width / 2
+        r_vec = wp.transform.get_right_vector()
+        if self._direction == 'left':
+            r_vec *= -1
+
+        spawn_transform = wp.transform
+        spawn_transform.location += carla.Location(x=displacement * r_vec.x, y=displacement * r_vec.y, z=1)
+        actor = CarlaDataProvider.request_new_actor(
+            self._model, spawn_transform, rolename='scenario no lights', color=self._color)
+        if not actor:
+            raise ValueError("Couldn't spawn an obstacle actor")
+
+        return actor
+
+    def _initialize_actors(self, config):
+        # Center the obstacle in the lane instead of displacing it towards the lane edge
+        self._offset = self._lane_offset
+        self._lights = carla.VehicleLightState.NONE
+
+        super()._initialize_actors(config)
+
+        # The parent ORs its mask onto whatever the blueprint spawned with, so clear the light
+        # state outright, and make sure the parked car isn't holding the brake pedal (which
+        # would light up the brake lights) while still being immobile.
+        parked_actor = self.other_actors[-1]
+        parked_actor.set_light_state(carla.VehicleLightState.NONE)
+        parked_actor.apply_control(carla.VehicleControl(throttle=0.0, brake=0.0, hand_brake=True))
+
+    def _create_behavior(self):
+        behavior = super()._create_behavior()
+        behavior.name = "ParkedObstacleNoLights"
+        return behavior
+
+
+class ParkedObstacleNoLightsWithGlare(ParkedObstacleNoLights):
+    """
+    ParkedObstacleNoLights plus a second stationary vehicle in the lane next to the ego's,
+    turned around to face the ego with its high beams on. The glare is meant to wash out the
+    camera so the unlit obstacle in the ego's own lane is harder to pick out.
+    """
+
+    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+                 timeout=180):
+        # Read before the parent's __init__, which triggers _initialize_actors
+        self._glare_side = get_value_parameter(config, 'glare_side', str, 'left')
+        if self._glare_side not in ('left', 'right'):
+            raise ValueError(f"'glare_side' must be either 'left' or 'right' but {self._glare_side} was given")
+
+        # Defaults to None so they can be resolved from 'distance' once the parent has parsed it
+        self._glare_distance = get_value_parameter(config, 'glare_distance', float, None)
+        self._glare_aim_distance = get_value_parameter(config, 'glare_aim_distance', float, None)
+        self._glare_yaw_offset = get_value_parameter(config, 'glare_yaw_offset', float, 0.0)
+        self._glare_model = get_value_parameter(config, 'glare_model', str, 'vehicle.tesla.model3')
+        self._glare_lights = carla.VehicleLightState.HighBeam | carla.VehicleLightState.LowBeam \
+            | carla.VehicleLightState.Position
+
+        super().__init__(world, ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
+
+    def _get_glare_waypoint(self, wp):
+        """
+        Returns the waypoint of the neighbouring lane the glare vehicle is parked on,
+        preferring the requested side and falling back to the other one
+        """
+        sides = [self._glare_side, 'right' if self._glare_side == 'left' else 'left']
+        for side in sides:
+            side_wp = wp.get_left_lane() if side == 'left' else wp.get_right_lane()
+            if side_wp and side_wp.lane_type == carla.LaneType.Driving:
+                return side_wp
+
+        raise ValueError("Couldn't find a neighbouring driving lane to park the glare vehicle on")
+
+    def _spawn_glare_vehicle(self, wp, aim_location):
+        """
+        Spawns a stationary vehicle on the given waypoint, aimed at 'aim_location',
+        with its high beams on
+        """
+        spawn_transform = carla.Transform(wp.transform.location + carla.Location(z=1), wp.transform.rotation)
+
+        # Toe the vehicle in towards the ego's lane instead of leaving it square with its own one,
+        # so the headlight cones point into the camera rather than sweeping past it. Aiming also
+        # covers the yaw flip, as a neighbouring lane may run either way.
+        aim_vector = aim_location - spawn_transform.location
+        spawn_transform.rotation.yaw = math.degrees(math.atan2(aim_vector.y, aim_vector.x)) \
+            + self._glare_yaw_offset
+
+        actor = CarlaDataProvider.request_new_actor(
+            self._glare_model, spawn_transform, rolename='scenario no lights')
+        if not actor:
+            raise ValueError("Couldn't spawn the glare vehicle")
+
+        # 'scenario no lights' keeps RouteLightsBehavior from managing this actor, so the high
+        # beams stay on for the whole route instead of being stripped once the ego is far away
+        actor.set_light_state(carla.VehicleLightState(self._glare_lights))
+        actor.apply_control(carla.VehicleControl(throttle=0.0, brake=0.0, hand_brake=True))
+
+        return actor
+
+    def _initialize_actors(self, config):
+        super()._initialize_actors(config)
+
+        # Sit alongside the obstacle by default, so its halo overlaps the black car in the image
+        # instead of the ego seeing the two of them side by side
+        glare_distance = self._glare_distance
+        if glare_distance is None:
+            glare_distance = self._distance
+
+        # Point at the ego's lane some way back down the route. Aiming all the way at the trigger
+        # point would toe the vehicle in by only a few degrees; a shorter distance aims the beams
+        # at where the ego actually is while it closes on the obstacle.
+        aim_distance = self._glare_aim_distance
+        if aim_distance is None:
+            aim_distance = 15.0
+        aim_distance = min(aim_distance, glare_distance)
+
+        glare_wp = self._get_glare_waypoint(self._move_waypoint_forward(self._starting_wp, glare_distance))
+        aim_wp = self._move_waypoint_forward(self._starting_wp, glare_distance - aim_distance)
+        self.other_actors.append(self._spawn_glare_vehicle(glare_wp, aim_wp.transform.location))
+
+    def _create_behavior(self):
+        behavior = super()._create_behavior()
+        behavior.name = "ParkedObstacleNoLightsWithGlare"
+        return behavior
 
 
 class HazardAtSideLane(BasicScenario):
