@@ -28,12 +28,13 @@
             <position x="-538.6" y="6489.0" z="358.2" />
          </waypoints>
          <scenarios>
-            <scenario name="ParkedObstacleNoLights_1" type="ParkedObstacleNoLights">
+            <scenario name="PedestrianCrowd_1" type="PedestrianCrowd">
                <trigger_point x="-418.6" y="6489.9" yaw="-179.6" z="357.4" />
-               <distance value="30.0" />
+               <distance value="100.0" />
                <offset value="0.0" />
-               <color value="0,0,0" />
-               <model value="vehicle.tesla.model3" />
+               <crowd_size value="5" />
+               <lateral_spacing value="0.5" />
+               <row_spacing value="0.7" />
                <speed value="90.0" />
                <end_on_encounter value="true" />
                <stop_distance value="15.0" />
@@ -41,8 +42,8 @@
             </scenario>
          </scenarios>
          <weathers>
-            <weather cloudiness="100.0" fog_density="100.0" fog_distance="0.0" fog_falloff="0.0" precipitation="100.0" precipitation_deposits="100.0" route_percentage="0" scattering_intensity="1.0" mie_scattering_scale="0.05" sun_altitude_angle="-90.0" sun_azimuth_angle="220.0" wetness="100.0" wind_intensity="100.0" />
-            <weather cloudiness="100.0" fog_density="100.0" fog_distance="0.0" fog_falloff="0.0" precipitation="100.0" precipitation_deposits="100.0" route_percentage="100" scattering_intensity="1.0" mie_scattering_scale="0.05" sun_altitude_angle="-90.0" sun_azimuth_angle="220.0" wetness="100.0" wind_intensity="100.0" />
+            <weather cloudiness="0.0" fog_density="0.0" fog_distance="0.0" fog_falloff="0.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="0" scattering_intensity="1.0" mie_scattering_scale="0.0" sun_altitude_angle="3.0" sun_azimuth_angle="0.4" wetness="0.0" wind_intensity="0.0" />
+            <weather cloudiness="0.0" fog_density="0.0" fog_distance="0.0" fog_falloff="0.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="100" scattering_intensity="1.0" mie_scattering_scale="0.0" sun_altitude_angle="3.0" sun_azimuth_angle="0.4" wetness="0.0" wind_intensity="0.0" />
          </weathers>
       </route>
       </routes>

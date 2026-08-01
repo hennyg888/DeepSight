@@ -1302,7 +1302,9 @@ class WaitForCollision(AtomicCondition):
 
     Important parameters:
     - actor: CARLA actor the collision sensor is attached to
-    - other_actor: only collisions with this actor count. None registers any collision.
+    - other_actor: only collisions with this actor count. Accepts a list of actors, for
+      an obstacle made of several of them (a pedestrian crowd), in which case hitting
+      any one of them is enough. None registers any collision.
     - name: Name of the condition
     """
 
@@ -1310,7 +1312,14 @@ class WaitForCollision(AtomicCondition):
         super(WaitForCollision, self).__init__(name)
         self.logger.debug("%s.__init__()" % (self.__class__.__name__))
         self._actor = actor
-        self._other_actor = other_actor
+        # Resolved to ids at construction: an id survives the actor being destroyed,
+        # which a reference does not.
+        if other_actor is None:
+            self._other_ids = None
+        elif isinstance(other_actor, (list, tuple, set)):
+            self._other_ids = {a.id for a in other_actor}
+        else:
+            self._other_ids = {other_actor.id}
         self._collision_sensor = None
         self._collided = False
 
@@ -1327,7 +1336,7 @@ class WaitForCollision(AtomicCondition):
         super(WaitForCollision, self).initialise()
 
     def _on_collision(self, event):
-        if self._other_actor is None or event.other_actor.id == self._other_actor.id:
+        if self._other_ids is None or event.other_actor.id in self._other_ids:
             self._collided = True
 
     def update(self):

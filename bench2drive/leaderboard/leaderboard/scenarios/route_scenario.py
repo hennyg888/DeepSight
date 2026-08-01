@@ -464,7 +464,8 @@ class RouteScenario(BasicScenario):
         Create the street lights behavior
         """
         return RouteLightsBehavior(self.ego_vehicles[0], 100,
-                                   street_lights=getattr(self.config, 'street_lights', True))
+                                   street_lights=getattr(self.config, 'street_lights', True),
+                                   ego_lights=getattr(self.config, 'ego_lights', True))
 
     def _create_timeout_behavior(self):
         """

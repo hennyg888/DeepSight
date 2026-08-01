@@ -117,6 +117,10 @@ class RouteParser(object):
             # so a night route stays fully dark instead of being lit by the lamp posts.
             route_config.street_lights = \
                 route.attrib.get('street_lights', 'on').lower() not in ('off', 'false', '0')
+            # Optional per-route switch: ego_lights="off" keeps the ego's own headlights
+            # dark at night, so it is not a light source in the scene it is recording.
+            route_config.ego_lights = \
+                route.attrib.get('ego_lights', 'on').lower() not in ('off', 'false', '0')
             # Optional per-route switch: background_traffic="off" leaves the road empty,
             # so only the ego and the scenario actors are present.
             route_config.background_traffic = \

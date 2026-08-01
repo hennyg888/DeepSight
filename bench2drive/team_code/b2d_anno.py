@@ -1,4 +1,4 @@
-"""Bench2Drive-format `anno/` writer for eval-time agents.
+"""Bench2Drive-format `anno/` and `lidar/` writers for eval-time agents.
 
 The DeepSight training-sample builders (DeepSight/src/tools/create_date_set.py and
 crop_bev_for_bench2drive.py) read `<scene>/anno/%05d.json[.gz]` in the schema that
@@ -28,6 +28,10 @@ Fidelity vs. data_collect.py:
                       these are left null rather than filled with a plausible-looking
                       wrong value.
 
+`write_lidar` covers the other half of the layout: the raw `lidar/%05d.laz` point
+clouds, in the same LAS format 0 / 1 mm grid encoding data_collect.py uses, alongside
+the rendered `lidar_bev/%05d.png` the agents already produce.
+
 Note the eval agent's top-down camera is registered as `CAM_BEV`; it is written into
 the anno under the key `TOP_DOWN` so downstream code that does
 `anno['sensors']['TOP_DOWN']` works unchanged.  The two sensor specs are identical
@@ -40,6 +44,7 @@ import os
 import sys
 
 import carla
+import laspy
 import numpy as np
 
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
@@ -55,6 +60,15 @@ DIS_ACTOR_SAVE = 100
 
 # Eval-agent sensor id -> key used in the Bench2Drive anno schema.
 SENSOR_ID_TO_ANNO_KEY = {'CAM_BEV': 'TOP_DOWN'}
+
+# LIDAR_TOP mounting point, from the sensor spec both agents declare.  Raw CARLA
+# LiDAR points come back in the sensor frame; the training .laz files store them
+# in the ego frame, which for this rig is a pure translation (yaw/roll/pitch = 0).
+LIDAR_POS = np.array([-0.39, 0.0, 1.84])
+
+# laspy quantises coordinates onto an integer grid of this size (metres), same as
+# tools/data_collect.py.
+LIDAR_POINT_PRECISION = 0.001
 
 
 def _cube_vertices(bbx_loc, extent):
@@ -230,6 +244,32 @@ def get_weather():
         'wetness': w.wetness,
         'fog_falloff': w.fog_falloff,
     }
+
+
+def write_lidar(save_path, frame, lidar_raw):
+    """Write `<save_path>/lidar/<frame:05>.laz` the way tools/data_collect.py does.
+
+    `lidar_raw` is the (N, 4) [x, y, z, intensity] array CARLA hands the agent in
+    `input_data['LIDAR_TOP'][1]`.  Only xyz is stored, translated into the ego frame
+    -- LAS point format 0 has no intensity field, which is why the BEV renderer
+    (make_lidar_bev) zeroes intensity to stay consistent with the training data.
+    """
+    points = np.asarray(lidar_raw)[:, :3] + LIDAR_POS
+
+    header = laspy.LasHeader(point_format=0)
+    # An empty sweep would make np.min raise; keep the frame numbering contiguous by
+    # writing a valid but empty file instead.
+    header.offsets = np.min(points, axis=0) if len(points) else np.zeros(3)
+    header.scales = np.full(3, LIDAR_POINT_PRECISION)
+
+    out_file = os.path.join(str(save_path), 'lidar', f'{frame:05}.laz')
+    with laspy.open(out_file, mode='w', header=header) as writer:
+        record = laspy.ScaleAwarePointRecord.zeros(len(points), header=header)
+        record.x = points[:, 0]
+        record.y = points[:, 1]
+        record.z = points[:, 2]
+        writer.write_points(record)
+    return out_file
 
 
 def write_anno(save_path, frame, ego, tick_data, control, sensor_specs):

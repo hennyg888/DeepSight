@@ -8,6 +8,7 @@ the carla_garage PDM-lite expert) in the sensor rig and on-disk layout that
         camera/CAM_{FRONT,FRONT_LEFT,FRONT_RIGHT,BACK,BACK_LEFT,BACK_RIGHT,BEV}/%05d.jpg
         lidar_bev/%05d.png
         anno/%05d.json.gz          (only with SAVE_ANNO=1)
+        lidar/%05d.laz             (only with SAVE_ANNO=1)
         metric_info.json
 
 The point of running the expert rather than the model is the trajectory labels: the
@@ -58,7 +59,7 @@ from autopilot import AutoPilot  # noqa: E402
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tools'))
 from lidar_to_bev import bev_projection  # noqa: E402
-from team_code.b2d_anno import write_anno  # noqa: E402
+from team_code.b2d_anno import write_anno, write_lidar  # noqa: E402
 
 SAVE_PATH = os.environ.get('SAVE_PATH', None)
 SAVE_ANNO = os.environ.get('SAVE_ANNO', '0') not in ('0', '', 'false', 'False')
@@ -121,6 +122,7 @@ class PdmLiteB2DAgent(AutoPilot):
             self.record_path = pathlib.Path(SAVE_PATH) / 'Scenarios' / string
             self.record_path.mkdir(parents=True, exist_ok=False)
             (self.record_path / 'anno').mkdir()
+            (self.record_path / 'lidar').mkdir()
             (self.record_path / 'lidar_bev').mkdir()
             for cam_key in CAM_KEYS:
                 (self.record_path / 'camera' / cam_key).mkdir(parents=True, exist_ok=True)
@@ -239,11 +241,16 @@ class PdmLiteB2DAgent(AutoPilot):
 
         if SAVE_ANNO:
             # Never let a bad frame kill the run -- a hole in anno/ just costs that sample.
+            # Separate try blocks so a failure in one does not drop the other.
             try:
                 write_anno(self.record_path, frame, self._vehicle,
                            self.anno_tick_data(input_data, control), control, self.sensors())
             except Exception as e:
                 print(f'[pdm_lite_b2d] anno frame {frame}: {e}')
+            try:
+                write_lidar(self.record_path, frame, input_data['LIDAR_TOP'][1])
+            except Exception as e:
+                print(f'[pdm_lite_b2d] lidar frame {frame}: {e}')
 
     def anno_tick_data(self, input_data, control):
         """The subset of QwenAgent's tick_data dict that b2d_anno.write_anno consumes."""

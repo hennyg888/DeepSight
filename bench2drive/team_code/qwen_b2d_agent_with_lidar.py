@@ -18,7 +18,7 @@ from scipy.optimize import fsolve
 from scipy.interpolate import splprep, splev
 from team_code.pid_controller import PIDController
 from team_code.planner import RoutePlanner
-from team_code.b2d_anno import write_anno
+from team_code.b2d_anno import write_anno, write_lidar
 from leaderboard.autoagents import autonomous_agent
 
 from qwen_vl_utils import process_vision_info
@@ -203,6 +203,7 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
             self.save_path.mkdir(parents=True, exist_ok=False)
             (self.save_path / 'meta').mkdir()
             (self.save_path / 'anno').mkdir()
+            (self.save_path / 'lidar').mkdir()
             (self.save_path / 'bev').mkdir()
             (self.save_path / 'lidar_bev').mkdir()
             for cam_key in ['CAM_FRONT','CAM_FRONT_LEFT','CAM_FRONT_RIGHT','CAM_BACK','CAM_BACK_LEFT','CAM_BACK_RIGHT', 'CAM_BEV']:
@@ -873,13 +874,18 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
         for cam, img in imgs_with_box.items():
             Image.fromarray(img).save(self.save_path / str.lower(cam).replace('cam','rgb') / ('%04d.png' % frame))
         # Training-data annotations. Never let a bad frame kill the run -- a hole in
-        # anno/ just costs that one sample downstream.
+        # anno/ just costs that one sample downstream. Separate try blocks so a
+        # failure in one does not drop the other.
         if SAVE_ANNO and control is not None:
             try:
                 write_anno(self.save_path, frame, self.manager.ego_vehicles[0],
                            tick_data, control, self.sensors())
             except Exception as e:
                 print(f'[b2d_anno] frame {frame}: {e}')
+            try:
+                write_lidar(self.save_path, frame, tick_data['lidar'])
+            except Exception as e:
+                print(f'[b2d_anno] lidar frame {frame}: {e}')
 
     def save_cur_frame(self, tick_data):
         images = tick_data['imgs']

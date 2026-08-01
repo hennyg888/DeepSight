@@ -51,4 +51,5 @@ class RouteScenarioConfiguration(ScenarioConfiguration):
         self.keypoints = None
         self.scenario_configs = []
         self.street_lights = True
+        self.ego_lights = True
         self.background_traffic = True

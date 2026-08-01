@@ -24,8 +24,8 @@
 #     bash leaderboard/scripts/run_custom_route.sh leaderboard/data/route121_car_glare.xml expert
 #
 # anno/*.json.gz (the Bench2Drive per-frame annotations that turn a run into DeepSight
-# training samples, see team_code/b2d_anno.py) are written by default; SAVE_ANNO=0
-# disables them.
+# training samples, see team_code/b2d_anno.py) and lidar/*.laz (the raw point clouds
+# behind the rendered lidar_bev pngs) are written by default; SAVE_ANNO=0 disables both.
 #
 # The CARLA server is started via start_carla.sh if it isn't already up (that script
 # is idempotent), and is deliberately left running afterwards. Stop it with:
@@ -34,7 +34,8 @@
 
 set -euo pipefail
 # On by default here; SAVE_ANNO=0 bash run_custom_route.sh ... turns it off for a run
-# where you only care about the score (it costs a full actor sweep per frame).
+# where you only care about the score (it costs a full actor sweep plus a ~100 KB .laz
+# per frame).
 export SAVE_ANNO="${SAVE_ANNO:-1}"
 
 BENCH2DRIVE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -88,17 +89,21 @@ case "$PROFILE" in
 esac
 TEAM_CONFIG="${CHECKPOINT_OVERRIDE:-$DEFAULT_CHECKPOINT}"
 
+# Where runs land. Override to keep a batch (e.g. a whole route matrix) out of the
+# results_custom pile:  RESULTS_ROOT=results_matrix bash run_custom_route.sh ...
+RESULTS_ROOT="${RESULTS_ROOT:-results_custom}"
+
 # Fresh timestamped dir per run: never overwrites a previous run's results, and
 # avoids run_evaluation.sh's RESUME=True skipping a route that a stale json
 # already recorded as completed.
 RUN_NAME="$(basename "${ROUTE_XML%.xml}")"
-OUT="results_custom/${RUN_NAME}_$(date +%m%d_%H%M%S)"
+OUT="$RESULTS_ROOT/${RUN_NAME}_$(date +%m%d_%H%M%S)"
 mkdir -p "$OUT"
 
 # Stable path that always points at the newest run, so a file explorer / watch can
-# stay parked on results_custom/latest and follow the live camera + lidar_bev frames
+# stay parked on <RESULTS_ROOT>/latest and follow the live camera + lidar_bev frames
 # as they stream in. Relative target so the link resolves from anywhere.
-ln -sfn "$(basename "$OUT")" results_custom/latest
+ln -sfn "$(basename "$OUT")" "$RESULTS_ROOT/latest"
 
 # Attach to a persistent server instead of spawning a per-run one.
 export LB_EXTERNAL_CARLA=1

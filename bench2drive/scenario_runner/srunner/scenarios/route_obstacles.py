@@ -470,23 +470,39 @@ class ParkedObstacle(BasicScenario):
         the ego never merges out and leaves; a scenario where it might should gate the
         StandStill on distance as well.
         """
+        obstacle_actors = self._encounter_actors()
+
         resolved = py_trees.composites.Parallel(
             name="ObstacleEncounterResolved", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
 
+        # An obstacle can be made of several actors (a pedestrian crowd); reaching or
+        # hitting any one of them counts as having met it.
+        reached = py_trees.composites.Parallel(
+            name="EgoReachedObstacle", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+        for actor in obstacle_actors:
+            # freespace: bumper-to-bumper rather than centre-to-centre, so stop_distance
+            # means the gap you would actually see in the camera frame.
+            reached.add_child(InTriggerDistanceToVehicle(
+                actor, self.ego_vehicles[0], self._stop_distance, freespace=True,
+                name="EgoReachedObstacle"))
+
         stopped = py_trees.composites.Sequence(name="EgoStoppedInFrontOfObstacle")
-        # freespace: bumper-to-bumper rather than centre-to-centre, so stop_distance means
-        # the gap you would actually see in the camera frame.
-        stopped.add_child(InTriggerDistanceToVehicle(
-            self._parked_actor, self.ego_vehicles[0], self._stop_distance, freespace=True,
-            name="EgoReachedObstacle"))
+        stopped.add_child(reached)
         stopped.add_child(StandStill(
             self.ego_vehicles[0], duration=self._stop_duration, name="EgoStandStill"))
         resolved.add_child(stopped)
 
         resolved.add_child(WaitForCollision(
-            self.ego_vehicles[0], self._parked_actor, name="EgoHitObstacle"))
+            self.ego_vehicles[0], obstacle_actors, name="EgoHitObstacle"))
 
         return resolved
+
+    def _encounter_actors(self):
+        """
+        The actors that count as 'the obstacle' for the end condition above. Subclasses
+        that put more than one thing in the ego's way override this.
+        """
+        return [self._parked_actor]
 
     def _create_test_criteria(self):
         """
@@ -700,6 +716,146 @@ class ParkedObstacleNoLightsWithGlare(ParkedObstacleNoLights):
         behavior = super()._create_behavior()
         behavior.name = "ParkedObstacleNoLightsWithGlare"
         return behavior
+
+
+class PedestrianCrowd(ParkedObstacle):
+    """
+    Variation of ParkedObstacle where the thing blocking the ego's lane is a small group of
+    pedestrians standing in the road rather than a parked vehicle: same geometry, same
+    'drive up to it' end condition, a very different object to recognise.
+
+    Like ParkedObstacleNoLights there is no roadside warning prop -- the crowd is
+    unsignalled -- and the pedestrians are stationary: they are an obstacle to be seen and
+    stopped for, not a crossing hazard (srunner.scenarios.pedestrian_crossing covers that).
+    """
+
+    # Turned to face the oncoming ego
+    MEMBER_YAW_OFFSET = 180.0
+    DEFAULT_MODEL = 'walker.pedestrian.*'
+    # Roughly a shoulder-and-a-half apart: reads as a group in the camera frame while
+    # still fitting inside a ~3.5 m lane at the default size of 3.
+    DEFAULT_LATERAL_SPACING = 0.9
+    DEFAULT_ROW_SPACING = 0.7
+
+    def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
+                 timeout=180):
+        # Read before the parent's __init__, which triggers _initialize_actors
+        self._crowd_size = int(get_value_parameter(config, 'crowd_size', float, 3))
+        self._model = get_value_parameter(config, 'model', str, self.DEFAULT_MODEL)
+        self._lateral_spacing = get_value_parameter(config, 'lateral_spacing', float, self.DEFAULT_LATERAL_SPACING)
+        self._row_spacing = get_value_parameter(config, 'row_spacing', float, self.DEFAULT_ROW_SPACING)
+        self._yaw_offset = get_value_parameter(config, 'yaw_offset', float, self.MEMBER_YAW_OFFSET)
+        self._lane_offset = get_value_parameter(config, 'offset', float, 0.0)
+
+        super().__init__(world, ego_vehicles, config, randomize, debug_mode, criteria_enable, timeout)
+
+    def _spawn_side_prop(self, wp):
+        """No roadside warning sign: the crowd is unsignalled"""
+        pass
+
+    def _member_longitudinal(self, i):
+        """
+        Distance along the road of member `i` from the group's anchor point. Alternating
+        so the row zig-zags rather than drifting to one end, which keeps the members
+        behind from being fully occluded by the ones in front.
+        """
+        return self._row_spacing * (i % 2)
+
+    def _crowd_transforms(self, wp):
+        """
+        Places the group across the ego's lane, centred on `offset`, all of them turned by
+        the same `yaw_offset` from the road direction.
+        """
+        r_vec = wp.transform.get_right_vector()
+        f_vec = wp.transform.get_forward_vector()
+
+        transforms = []
+        for i in range(self._crowd_size):
+            # Centre the row on the lane centre: e.g. -1, 0, +1 for three members
+            lateral = (i - (self._crowd_size - 1) / 2) * self._lateral_spacing
+            lateral += self._lane_offset * wp.lane_width / 2
+            longitudinal = self._member_longitudinal(i)
+
+            location = wp.transform.location + carla.Location(
+                x=lateral * r_vec.x + longitudinal * f_vec.x,
+                y=lateral * r_vec.y + longitudinal * f_vec.y,
+                z=1)
+            rotation = carla.Rotation(yaw=wp.transform.rotation.yaw + self._yaw_offset)
+            transforms.append(carla.Transform(location, rotation))
+
+        return transforms
+
+    def _spawn_member(self, spawn_transform):
+        """Spawns one member of the group. Overridden for groups that are not walkers."""
+        walker = CarlaDataProvider.request_new_actor(
+            self._model, spawn_transform, rolename='scenario', actor_category='pedestrian')
+        if not walker:
+            raise ValueError("Couldn't spawn a pedestrian of the crowd")
+        return walker
+
+    def _initialize_actors(self, config):
+        """
+        Same waypoint layout as the parent -- the group stands where the parked car would --
+        but spawning several actors instead of one, so the parent's light-state and
+        hand-brake handling (which only exists on carla.Vehicle) does not apply here.
+        """
+        self._starting_wp = self._map.get_waypoint(config.trigger_points[0].location)
+        self._spawn_side_prop(self._starting_wp)
+
+        self._vehicle_wp = self._move_waypoint_forward(self._starting_wp, self._distance)
+
+        self._members = []
+        for spawn_transform in self._crowd_transforms(self._vehicle_wp):
+            actor = self._spawn_member(spawn_transform)
+            self._members.append(actor)
+            self.other_actors.append(actor)
+
+        self._end_wp = self._move_waypoint_forward(self._vehicle_wp, self._end_distance)
+
+    def _encounter_actors(self):
+        """Reaching or hitting any member of the group resolves the encounter"""
+        return self._members
+
+    def _create_behavior(self):
+        behavior = super()._create_behavior()
+        behavior.name = self.__class__.__name__
+        return behavior
+
+
+class ParkedCyclists(PedestrianCrowd):
+    """
+    Variation of PedestrianCrowd where the group blocking the ego's lane is a set of parked
+    bicycles turned side-on, across the road rather than along it -- the silhouette an
+    approaching car sees is the full length of the bike, not its narrow rear end.
+
+    They are vehicles rather than walkers, so unlike the pedestrian version they get the
+    hand brake and an explicitly cleared light state (bicycles carry no lights of their own,
+    but the 'no lights' role name also keeps RouteLightsBehavior from adding any at night).
+    """
+
+    # Square across the road, so the ego sees the bike broadside
+    MEMBER_YAW_OFFSET = 90.0
+    DEFAULT_MODEL = 'vehicle.*'
+    # Side-on a bicycle is ~1.6 m long, so three of them cannot sit abreast in a ~3.5 m
+    # lane; they are lined up along the road instead (see _member_longitudinal) and the
+    # lateral term only jitters them off the centre line.
+    DEFAULT_LATERAL_SPACING = 0.5
+    DEFAULT_ROW_SPACING = 2.0
+
+    def _member_longitudinal(self, i):
+        """A queue along the road rather than the parent's two-deep zig-zag"""
+        return self._row_spacing * i
+
+    def _spawn_member(self, spawn_transform):
+        actor = CarlaDataProvider.request_new_actor(
+            self._model, spawn_transform, rolename='scenario no lights',
+            attribute_filter={'base_type': 'bicycle'})
+        if not actor:
+            raise ValueError("Couldn't spawn a bicycle of the group")
+
+        actor.set_light_state(carla.VehicleLightState.NONE)
+        actor.apply_control(carla.VehicleControl(throttle=0.0, brake=0.0, hand_brake=True))
+        return actor
 
 
 class HazardAtSideLane(BasicScenario):

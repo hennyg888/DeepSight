@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<routes><route id="17655" road_id="820" town="Town12" street_lights="off" background_traffic="off">
+<routes><route id="17655" road_id="820" town="Town12" street_lights="off" ego_lights="off" background_traffic="off">
          <waypoints>
             <position x="-418.6" y="6489.9" z="357.4" />
             <position x="-423.6" y="6489.9" z="357.5" />
@@ -27,22 +27,10 @@
             <position x="-533.6" y="6489.0" z="358.1" />
             <position x="-538.6" y="6489.0" z="358.2" />
          </waypoints>
-         <scenarios>
-            <scenario name="ParkedObstacleNoLights_1" type="ParkedObstacleNoLights">
-               <trigger_point x="-418.6" y="6489.9" yaw="-179.6" z="357.4" />
-               <distance value="30.0" />
-               <offset value="0.0" />
-               <color value="255,255,255" />
-               <model value="vehicle.tesla.model3" />
-               <speed value="90.0" />
-               <end_on_encounter value="true" />
-               <stop_distance value="15.0" />
-               <stop_duration value="2.0" />
-            </scenario>
-         </scenarios>
+         <scenarios></scenarios>
          <weathers>
-            <weather cloudiness="0.0" fog_density="0.0" fog_distance="0.0" fog_falloff="0.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="0" scattering_intensity="1.0" mie_scattering_scale="0.0" sun_altitude_angle="3.0" sun_azimuth_angle="0.4" wetness="0.0" wind_intensity="0.0" />
-            <weather cloudiness="0.0" fog_density="0.0" fog_distance="0.0" fog_falloff="0.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="100" scattering_intensity="1.0" mie_scattering_scale="0.0" sun_altitude_angle="3.0" sun_azimuth_angle="0.4" wetness="0.0" wind_intensity="0.0" />
+            <weather cloudiness="100.0" fog_density="100.0" fog_distance="0.0" fog_falloff="0.0" precipitation="100.0" precipitation_deposits="100.0" route_percentage="0" scattering_intensity="0.0" mie_scattering_scale="0.0" rayleigh_scattering_scale="0.0" sun_altitude_angle="-90.0" sun_azimuth_angle="220.0" wetness="100.0" wind_intensity="100.0" />
+            <weather cloudiness="100.0" fog_density="100.0" fog_distance="0.0" fog_falloff="0.0" precipitation="100.0" precipitation_deposits="100.0" route_percentage="100" scattering_intensity="0.0" mie_scattering_scale="0.0" rayleigh_scattering_scale="0.0" sun_altitude_angle="-90.0" sun_azimuth_angle="220.0" wetness="100.0" wind_intensity="100.0" />
          </weathers>
       </route>
       </routes>

@@ -33,7 +33,8 @@ class RouteLightsBehavior(py_trees.behaviour.Behaviour):
     # In cases where more than one weather conditition is active, decrease the thresholds
     COMBINED_THRESHOLD = 10
 
-    def __init__(self, ego_vehicle, radius=50, radius_increase=15, street_lights=True, name="LightsBehavior"):
+    def __init__(self, ego_vehicle, radius=50, radius_increase=15, street_lights=True,
+                 ego_lights=True, name="LightsBehavior"):
         """
         Setup parameters
         """
@@ -42,6 +43,7 @@ class RouteLightsBehavior(py_trees.behaviour.Behaviour):
         self._radius = radius
         self._radius_increase = radius_increase
         self._street_lights = street_lights
+        self._ego_lights = ego_lights
         self._world = CarlaDataProvider.get_world()
         self._light_manager = self._world.get_lightmanager()
         self._light_manager.set_day_night_cycle(False)
@@ -134,8 +136,19 @@ class RouteLightsBehavior(py_trees.behaviour.Behaviour):
                 pass
 
         # Ego vehicle
+        self._set_ego_lights(on=self._ego_lights)
+
+    def _set_ego_lights(self, on):
+        """Add or remove the night-driving lights on the ego.
+
+        Called every tick, which is why an ego_lights="off" route cannot just clear the
+        lights once from the agent: this would switch them straight back on.
+        """
         lights = self._ego_vehicle.get_light_state()
-        lights |= self._vehicle_lights
+        if on:
+            lights |= self._vehicle_lights
+        else:
+            lights &= ~self._vehicle_lights
         self._ego_vehicle.set_light_state(carla.VehicleLightState(lights))
 
     def _turn_all_lights_off(self):
@@ -154,9 +167,7 @@ class RouteLightsBehavior(py_trees.behaviour.Behaviour):
             vehicle.set_light_state(carla.VehicleLightState(lights))
 
         # Ego vehicle
-        lights = self._ego_vehicle.get_light_state()
-        lights &= ~self._vehicle_lights  # Remove those lights
-        self._ego_vehicle.set_light_state(carla.VehicleLightState(lights))
+        self._set_ego_lights(on=False)
 
     def terminate(self, new_status):
         self._light_manager.set_day_night_cycle(True)

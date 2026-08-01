@@ -332,7 +332,9 @@ class LeaderboardEvaluator(object):
 
         # Prepare the statistics of the route
         route_name = f"{config.name}_rep{config.repetition_index}"
-        scenario_name = config.scenario_configs[0].name
+        # A route is allowed to declare no scenarios at all (an empty <scenarios/>), in
+        # which case there is no scenario to name the run after.
+        scenario_name = config.scenario_configs[0].name if config.scenario_configs else "NoScenario"
         town_name = str(config.town)
         weather_id = get_weather_id(config.weather[0][1])
         currentDateAndTime = datetime.now()
