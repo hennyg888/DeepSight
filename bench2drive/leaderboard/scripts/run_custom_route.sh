@@ -23,6 +23,13 @@
 #   expert rather than from a model imitating its own rollout:
 #     bash leaderboard/scripts/run_custom_route.sh leaderboard/data/route121_car_glare.xml expert
 #
+# A route xml may also carry an <overlays> block, e.g.
+#   <overlays><overlay type="glare" anchor="sun" angular_size="45"/></overlays>
+# which composites a world-anchored effect onto the sensor images after CARLA renders
+# them and before the model (or the expert's recorder) sees them -- see
+# leaderboard/leaderboard/utils/sensor_overlays/. It applies to every profile above,
+# needs no flag here, and does nothing for routes that don't declare it.
+#
 # anno/*.json.gz (the Bench2Drive per-frame annotations that turn a run into DeepSight
 # training samples, see team_code/b2d_anno.py) and lidar/*.laz (the raw point clouds
 # behind the rendered lidar_bev pngs) are written by default; SAVE_ANNO=0 disables both.

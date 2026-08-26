@@ -83,25 +83,33 @@
             <stop_duration value="2.0" />
          </scenario>
       </scenarios>
-      <!-- Sun, car and ego stay collinear: the azimuth is the bearing from the ego to the
-           car (100 m along the route) plus 180, sampled as the ego advances. The road bends
-           ~11 deg between the start line and the crowd, so this is NOT the local road heading
-           and NOT a constant: from the start the car is 100 m away across the bend, which
-           is 3.4 deg off the final approach bearing. Keypoints below hold the error under
-           0.1 deg everywhere before the encounter; interpolation is linear in route %. -->
-      <!-- Camera-side glare, composited onto the rgb cameras after CARLA renders them
-           (leaderboard/utils/sensor_overlays). anchor="sun" with no angles given tracks
-           the live weather sun, so it follows the azimuth keyframes below by itself and
-           stays put in the world as the ego turns. It is a camera artefact only: the
-           LiDAR, the BEV raster and CAM_BEV are untouched. -->
+      <!-- Overlay counterpart of route149_sun_glare_car.xml: same route, same parked
+           obstacle, but the sky is plain ClearNoon and the glare is composited onto the
+           camera images instead of being rendered by CARLA. Run the two side by side to
+           separate "the model can't see past a bright source" from anything else the
+           low-sun lighting changes about the scene.
+
+           anchor="actor" pins the glare to the parked car itself, at z_offset above its
+           origin, so it tracks the car exactly (no azimuth keyframes, unlike the original
+           file) and swallows it as the ego closes in.
+
+           size is in METRES, not degrees, which is what makes the glare grow on approach:
+           a finite anchor has a distance, so the sprite is projected like a real object of
+           that size. On CAM_FRONT (focal ~1142 px) size="12" gives roughly
+
+               100 m -> 137 px      50 m -> 274 px      30 m -> 457 px
+                15 m -> 914 px (the distance the route stops at, ~57% of the frame)
+
+           Use angular_size (degrees) instead to hold a constant apparent size. -->
       <overlays>
-         <overlay type="glare" anchor="sun" angular_size="45" intensity="1.0" />
+         <overlay type="glare" anchor="actor" role_name="scenario no lights"
+                  z_offset="0.4" size="18" intensity="2.5" />
       </overlays>
+      <!-- ClearNoon for the whole route: a single keyframe is set once at the start and
+           never interpolated, so the lighting is identical from the first frame to the
+           last and the glare is the only thing that changes across the run. -->
       <weathers>
-         <weather cloudiness="0.0" fog_density="0.0" fog_distance="0.0" fog_falloff="0.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="0" scattering_intensity="1.0" mie_scattering_scale="0.0" sun_altitude_angle="2.0" sun_azimuth_angle="268.6" wetness="0.0" wind_intensity="0.0" />
-         <weather cloudiness="0.0" fog_density="0.0" fog_distance="0.0" fog_falloff="0.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="45" scattering_intensity="1.0" mie_scattering_scale="0.0" sun_altitude_angle="2.0" sun_azimuth_angle="265.2" wetness="0.0" wind_intensity="0.0" />
-         <weather cloudiness="0.0" fog_density="0.0" fog_distance="0.0" fog_falloff="0.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="63" scattering_intensity="1.0" mie_scattering_scale="0.0" sun_altitude_angle="2.0" sun_azimuth_angle="263.6" wetness="0.0" wind_intensity="0.0" />
-         <weather cloudiness="0.0" fog_density="0.0" fog_distance="0.0" fog_falloff="0.0" precipitation="0.0" precipitation_deposits="0.0" route_percentage="100" scattering_intensity="1.0" mie_scattering_scale="0.0" sun_altitude_angle="2.0" sun_azimuth_angle="261.0" wetness="0.0" wind_intensity="0.0" />
+         <weather cloudiness="15.0" fog_density="0.0" fog_distance="0.0" fog_falloff="0.2" precipitation="0.0" precipitation_deposits="0.0" route_percentage="0" scattering_intensity="1.0" mie_scattering_scale="0.0" sun_altitude_angle="75.0" sun_azimuth_angle="0.0" wetness="0.0" wind_intensity="0.35" />
       </weathers>
    </route>
    </routes>

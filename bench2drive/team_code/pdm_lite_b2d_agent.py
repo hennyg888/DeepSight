@@ -45,6 +45,7 @@ from PIL import Image
 
 from leaderboard.autoagents import autonomous_agent
 from leaderboard.utils.route_manipulation import downsample_route
+from leaderboard.utils.sensor_overlays import apply_sensor_overlays, BevStream
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 
 # PDM-lite and its support modules (config, nav_planner, privileged_route_planner, ...)
@@ -58,7 +59,7 @@ if FAIL2DRIVE_TEAM_CODE not in sys.path:
 from autopilot import AutoPilot  # noqa: E402
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tools'))
-from lidar_to_bev import bev_projection  # noqa: E402
+from lidar_to_bev import bev_projection, BEV_RANGE_M  # noqa: E402
 from team_code.b2d_anno import write_anno, write_lidar  # noqa: E402
 
 SAVE_PATH = os.environ.get('SAVE_PATH', None)
@@ -226,14 +227,26 @@ class PdmLiteB2DAgent(AutoPilot):
         """Not named save() -- AutoPilot has its own save(), called from _get_control."""
         frame = self.step
 
+        # Every image this frame produced, cameras and the LiDAR BEV raster alike, goes
+        # through the route's sensor overlays before being written -- so a dataset
+        # collected on an overlay route carries exactly what the model will face at
+        # inference. The expert drives from privileged simulator state, so this only ever
+        # changes what is recorded, never how it drives.
+        images = {cam_key: input_data[cam_key][1][:, :, :3] for cam_key in CAM_KEYS}
+        bev = self.make_lidar_bev(input_data['LIDAR_TOP'][1])
+        images['LIDAR_BEV'] = bev
+        images = apply_sensor_overlays(
+            images, self._vehicle, sensors=self.sensors(),
+            streams={'LIDAR_BEV': BevStream('LIDAR_BEV', BEV_RANGE_M, bev.shape[1], bev.shape[0])},
+        )
+
         for cam_key in CAM_KEYS:
-            img = input_data[cam_key][1][:, :, :3]
             # Quality 20 matches both tools/data_collect.py and QwenAgent; the training
             # set was built at this compression level.
             cv2.imwrite(str(self.record_path / 'camera' / cam_key / f'{frame:05}.jpg'),
-                        img, [cv2.IMWRITE_JPEG_QUALITY, 20])
+                        images[cam_key], [cv2.IMWRITE_JPEG_QUALITY, 20])
 
-        Image.fromarray(self.make_lidar_bev(input_data['LIDAR_TOP'][1])).save(
+        Image.fromarray(images['LIDAR_BEV']).save(
             self.record_path / 'lidar_bev' / f'{frame:05}.png')
 
         with open(self.record_path / 'metric_info.json', 'w') as f:

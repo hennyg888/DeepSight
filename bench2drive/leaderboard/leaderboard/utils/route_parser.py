@@ -14,6 +14,8 @@ from agents.navigation.local_planner import RoadOption
 from srunner.scenarioconfigs.route_scenario_configuration import RouteScenarioConfiguration
 from srunner.scenarioconfigs.scenario_configuration import ScenarioConfiguration, ActorConfigurationData
 
+from leaderboard.utils.sensor_overlays import parse_overlays
+
 # Threshold to say if a scenarios trigger position is part of the route
 DIST_THRESHOLD = 2.0
 ANGLE_THRESHOLD = 10
@@ -113,6 +115,9 @@ class RouteParser(object):
             route_config.town = route.attrib['town']
             route_config.name = "RouteScenario_{}".format(route_id)
             route_config.weather = RouteParser.parse_weather(route)
+            # Optional <overlays> block: world-anchored post-processing the agents
+            # composite onto their sensor images (see utils/sensor_overlays).
+            route_config.overlays = RouteParser.parse_overlays(route)
             # Optional per-route switch: street_lights="off" keeps the map lights unlit,
             # so a night route stays fully dark instead of being lit by the lamp posts.
             route_config.street_lights = \
@@ -156,6 +161,15 @@ class RouteParser(object):
             route_configs.append(route_config)
 
         return route_configs
+
+    @staticmethod
+    def parse_overlays(route):
+        """
+        Parses the optional <overlays> block into a list of sensor overlays, empty when
+        the route doesn't ask for any. See leaderboard/utils/sensor_overlays for the
+        available overlay types, anchors and their attributes.
+        """
+        return parse_overlays(route)
 
     @staticmethod
     def parse_weather(route):

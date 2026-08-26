@@ -16,6 +16,7 @@ from scipy.interpolate import splprep, splev
 from team_code.pid_controller import PIDController
 from team_code.planner import RoutePlanner
 from leaderboard.autoagents import autonomous_agent
+from leaderboard.utils.sensor_overlays import apply_sensor_overlays
 
 from qwen_vl_utils import process_vision_info
 from transformers import AutoProcessor, AutoTokenizer, Qwen2_5_VLForConditionalGeneration
@@ -373,6 +374,10 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
         for cam in ['CAM_FRONT','CAM_FRONT_LEFT','CAM_FRONT_RIGHT','CAM_BACK','CAM_BACK_LEFT','CAM_BACK_RIGHT', 'CAM_BEV']:
             img = input_data[cam][1][:, :, :3]
             imgs[cam] = img
+        # Route-declared sensor overlays, composited in before anything reads the images
+        # (the model, the saved jpgs and the history frames all come off this dict), so
+        # the run sees effects CARLA never rendered. No-op unless the route asks for them.
+        apply_sensor_overlays(imgs, self.manager.ego_vehicles[0], sensors=self.sensors())
         gps = input_data['GPS'][1][:2]
         speed = input_data['SPEED'][1]['speed']
         compass = input_data['IMU'][1][-1]

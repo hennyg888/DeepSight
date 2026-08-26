@@ -20,6 +20,7 @@ from team_code.pid_controller import PIDController
 from team_code.planner import RoutePlanner
 from team_code.b2d_anno import write_anno, write_lidar
 from leaderboard.autoagents import autonomous_agent
+from leaderboard.utils.sensor_overlays import apply_sensor_overlays, BevStream
 
 from qwen_vl_utils import process_vision_info
 from transformers import AutoProcessor, AutoTokenizer, Qwen2_5_VLForConditionalGeneration
@@ -409,6 +410,10 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
         for cam in ['CAM_FRONT','CAM_FRONT_LEFT','CAM_FRONT_RIGHT','CAM_BACK','CAM_BACK_LEFT','CAM_BACK_RIGHT', 'CAM_BEV']:
             img = input_data[cam][1][:, :, :3]
             imgs[cam] = img
+        # Route-declared sensor overlays, composited in before anything reads the images
+        # (the model, the saved jpgs and the history frames all come off this dict), so
+        # the run sees effects CARLA never rendered. No-op unless the route asks for them.
+        apply_sensor_overlays(imgs, self.manager.ego_vehicles[0], sensors=self.sensors())
         gps = input_data['GPS'][1][:2]
         speed = input_data['SPEED'][1]['speed']
         lidar = input_data['LIDAR_TOP'][1]
@@ -556,6 +561,13 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
         intensity = np.zeros(len(lidar_raw), dtype=np.float32)
         pts = np.stack([ego_x, ego_y, z, intensity], axis=1).astype(np.float32)
         bev = bev_projection(pts)
+        # The rendered BEV goes through the same overlay layer the cameras do, as its own
+        # stream kind. The glare overlay declares itself camera-only and so leaves it
+        # untouched, but a BEV-aware overlay can draw on it without touching this agent.
+        bev = apply_sensor_overlays(
+            {'LIDAR_BEV': bev}, self.manager.ego_vehicles[0],
+            streams={'LIDAR_BEV': BevStream('LIDAR_BEV', BEV_RANGE_M, bev.shape[1], bev.shape[0])},
+        )['LIDAR_BEV']
         out_path = str(self.save_path / 'lidar_bev' / f'{self.step:05}.png')
         Image.fromarray(bev).save(out_path)
         return out_path

@@ -33,6 +33,7 @@ from leaderboard.envs.sensor_interface import SensorConfigurationInvalid
 from leaderboard.autoagents.agent_wrapper import AgentError, validate_sensor_configuration, TickRuntimeError
 from leaderboard.utils.statistics_manager import StatisticsManager, FAILURE_MESSAGES
 from leaderboard.utils.route_indexer import RouteIndexer
+from leaderboard.utils.sensor_overlays import set_active_overlays
 import atexit
 import subprocess
 import time
@@ -343,6 +344,13 @@ class LeaderboardEvaluator(object):
         self.statistics_manager.create_route_data(route_name, scenario_name, weather_id, save_name, town_name, config.index)
 
         print("\033[1m> Loading the world\033[0m", flush=True)
+
+        # Publish this route's sensor overlays (if any) for the agent to pick up: they are
+        # a post-process the agent applies, not something the simulator knows about.
+        route_overlays = getattr(config, 'overlays', None)
+        set_active_overlays(route_overlays)
+        for overlay in route_overlays or []:
+            print("\033[1m> Sensor overlay: {}\033[0m".format(overlay), flush=True)
 
         # Load the world and the scenario
         try:
