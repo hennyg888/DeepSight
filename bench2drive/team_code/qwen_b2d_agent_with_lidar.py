@@ -38,6 +38,18 @@ IS_BENCH2DRIVE = os.environ.get('IS_BENCH2DRIVE', None)
 # gets sent into the model is swapped out.
 BLACK_CAMERA_INPUT = os.environ.get('BLACK_CAMERA_INPUT', '0') not in ('0', '', 'false', 'False')
 
+# Mirror image of the above: feed the model an all-black image in place of the LiDAR
+# BEV, so inference runs on cameras only. The real BEV png is still rendered and saved
+# to lidar_bev/ for inspection; only the path handed to the model is swapped out.
+BLACK_LIDAR_INPUT = os.environ.get('BLACK_LIDAR_INPUT', '0') not in ('0', '', 'false', 'False')
+
+# Staleness ablation: hand the model the BEV from N seconds ago instead of the current
+# one. The first N seconds of a route have no such frame yet, so they are padded with the
+# same all-black BEV that BLACK_LIDAR_INPUT uses. 0 (default) = current frame, no delay.
+# Converted to steps against the agent's own 10 Hz tick rate (self.frame), not the
+# simulator's, so it stays 2 real seconds if either rate is ever changed.
+LIDAR_DELAY_S = float(os.environ.get('LIDAR_DELAY_S', '0'))
+
 # Write Bench2Drive-format anno/*.json.gz alongside the camera frames, so a run can be
 # turned into DeepSight training samples (see team_code/b2d_anno.py). Off by default:
 # it costs a full actor sweep per frame and is useless for plain scoring runs.
@@ -570,7 +582,31 @@ class QwenAgent(autonomous_agent.AutonomousAgent):
         )['LIDAR_BEV']
         out_path = str(self.save_path / 'lidar_bev' / f'{self.step:05}.png')
         Image.fromarray(bev).save(out_path)
+        if BLACK_LIDAR_INPUT:
+            return self._black_bev_path(bev)
+        if LIDAR_DELAY_S > 0:
+            # Every past BEV is already on disk under its own step number, so the delayed
+            # frame is a path lookup rather than an in-memory buffer.
+            delay_steps = int(round(LIDAR_DELAY_S * self.frame))
+            past_step = self.step - delay_steps
+            if past_step < 0:
+                return self._black_bev_path(bev)
+            past_path = str(self.save_path / 'lidar_bev' / f'{past_step:05}.png')
+            # A missing file would mean the step numbering drifted from the filenames;
+            # pad rather than crash, and say so once so it can't pass unnoticed.
+            if not os.path.exists(past_path):
+                print(f'[lidar-delay] missing {past_path}, padding black')
+                return self._black_bev_path(bev)
+            return past_path
         return out_path
+
+    def _black_bev_path(self, bev):
+        # Written once per run, same shape/dtype as a real BEV so the model sees an
+        # identically-sized image carrying no points.
+        black_path = str(self.save_path / 'lidar_bev' / 'black.png')
+        if not os.path.exists(black_path):
+            Image.fromarray(np.zeros_like(bev)).save(black_path)
+        return black_path
 
     def sample_path_equidistant(self, waypoints, interval=5.0):
         """
